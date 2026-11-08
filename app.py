@@ -58,11 +58,17 @@ def tone(item):
 
 
 def make_message(selected):
+    """학생의 마음을 먼저 받아 주고, 그날에 어울리는 응원을 건넵니다."""
     chosen = [BY_NAME[name] for name in selected]
     first = chosen[0]
     if len(chosen) == 1:
-        main = [first["acknowledge"][0], random.choice(first["perspective"]),
-                random.choice(POSITIVE_CLOSINGS if tone(first) == "bright" else LOW_CLOSINGS)]
+        mood = tone(first)
+        opening = random.choice(first["acknowledge"])
+        # acknowledgement와 perspective의 같은 문장이 연달아 나오지 않게 합니다.
+        perspectives = [p for p in first["perspective"] if p != opening]
+        middle = random.choice(perspectives or first["perspective"])
+        closing = random.choice(POSITIVE_CLOSINGS if mood == "bright" else LOW_CLOSINGS)
+        main = [opening, middle, closing]
     else:
         second = chosen[1]
         a, b = tone(first), tone(second)
@@ -74,28 +80,61 @@ def make_message(selected):
                     "오늘도 네 하루에 기분 좋은 일이 가득하길 바라. 아침의 밝은 에너지가 하루 종일 함께하길!",
                 ]
             else:
-                main = [first["acknowledge"][0], f"{second['name']} 마음까지 더해졌네. " + random.choice(second["perspective"]), random.choice(POSITIVE_CLOSINGS)]
+                main = [
+                    random.choice([
+                        "오늘 아침엔 마음속에 좋은 기운이 함께하고 있나 봐!",
+                        "오늘은 마음이 한결 환해지는 아침인가 봐.",
+                        "기분 좋은 마음이 둘이나 찾아온 오늘이네!",
+                    ]),
+                    random.choice([
+                        "지금 느끼는 기분을 서둘러 지나치지 말고, 잠깐 마음껏 누려 봐.",
+                        "무슨 일이 이런 기분을 만들어 줬는지 떠올려 보는 것도 즐겁겠다.",
+                        "작은 순간에서 찾은 기쁨도 충분히 소중해.",
+                    ]),
+                    random.choice(POSITIVE_CLOSINGS),
+                ]
         elif a == b == "heavy":
             if set(selected) == {"서운한", "화나는"}:
                 main = [
                     "기대했던 마음이 있어서 서운했는데, 화까지 났다면 마음이 더 복잡했겠어.",
-                    "그럴 때는 무엇이 가장 서운했는지, 무엇 때문에 화가 났는지 하나씩 살펴봐도 좋아.",
+                    "무엇이 가장 서운했는지, 어떤 점에서 화가 났는지 천천히 살펴봐도 좋아.",
                     "지금 바로 해결하려 애쓰지 말고, 네 마음을 차근차근 정리해 보자.",
                 ]
             else:
-                main = [first["acknowledge"][0], f"{second['name']} 마음도 함께 느껴지는구나. " + random.choice(second["perspective"]), random.choice(LOW_CLOSINGS)]
+                main = [
+                    random.choice([
+                        "마음이 여러모로 무거운 아침일 수도 있겠구나.",
+                        "한 가지로 설명하기 어려운 마음이 함께 찾아왔나 봐.",
+                        "이런 마음이 겹치는 날에는 평소보다 더 지치게 느껴질 수도 있어.",
+                    ]),
+                    random.choice([
+                        "그중 무엇이 가장 마음에 걸리는지 하나만 살펴봐도 좋아.",
+                        "지금 느끼는 감정을 서둘러 바꾸거나 숨기지 않아도 돼.",
+                        "무슨 일이 있었는지 당장 설명하기 어렵다면, 천천히 생각해 봐도 좋아.",
+                    ]),
+                    random.choice(LOW_CLOSINGS),
+                ]
         else:
             if set(selected) == {"기대되는", "긴장되는"}:
                 main = [
                     "기대되는 일이 있으면서도 잘하고 싶은 마음에 긴장될 수 있지.",
-                    "두근거리는 기대와 조심스러운 긴장이 함께 있다는 건 그만큼 마음이 쓰인다는 뜻일 수도 있어.",
-                    "완벽하게 하려고 애쓰기보다, 네가 준비한 만큼 한 걸음씩 해 보길 바라!",
+                    "두근거리는 기대와 조심스러운 긴장이 함께하는 건 자연스러운 일이야.",
+                    "완벽하게 하려고 애쓰기보다 네가 준비한 만큼 한 걸음씩 해 보길 바라!",
                 ]
             else:
-                bright = first if a == "bright" else second
-                heavy = second if a == "bright" else first
-                main = [f"{bright['name']} 마음이 있으면서도 {heavy['name']} 마음이 함께 드는구나.",
-                        random.choice(bright["perspective"]) + " " + random.choice(heavy["perspective"]), random.choice(MIXED_CLOSINGS)]
+                main = [
+                    random.choice([
+                        "기분 좋은 마음과 조금 무거운 마음이 함께 찾아왔나 봐.",
+                        "서로 다른 마음이 한꺼번에 들 때도 있지.",
+                        "오늘은 마음이 한 가지 색으로만 느껴지지 않는구나.",
+                    ]),
+                    random.choice([
+                        "어느 쪽이 진짜 마음인지 하나만 고를 필요는 없어.",
+                        "좋은 점도, 마음에 걸리는 점도 모두 천천히 바라봐도 좋아.",
+                        "지금 더 크게 느껴지는 마음이 무엇인지 살펴보는 것도 좋겠어.",
+                    ]),
+                    random.choice(MIXED_CLOSINGS),
+                ]
     extra_type = random.choice(["question", "action"])
     extra = random.choice(random.choice(chosen)[extra_type])
     return "\n\n".join(main), extra_type, extra
@@ -154,11 +193,13 @@ h1,h2,h3 {color:#654435;}
 [data-testid="stButton"] button {border-radius:15px;min-height:49px;white-space:normal;}
 .cookie-message {background:white;border:1px solid #f1d8bd;border-radius:22px;padding:24px;box-shadow:0 7px 20px #9a72551a;}
 .cookie-message p {font-size:1.12rem;line-height:1.8;color:#573d2e;}
+.selected-feelings {background:#fff8ec;border:1px solid #f1dcc5;border-radius:17px;padding:14px 19px;margin:0 0 14px;color:#744b3c;}
+.selected-feelings div {font-size:1.1rem;margin-top:5px;font-weight:600;}
 .cookie-stage {height:230px;position:relative;max-width:340px;margin:0 auto 6px;overflow:hidden;}
 .cookie-half {position:absolute;left:50%;top:0; width:205px;height:205px;transform:translateX(-50%);background-size:205px 205px;background-repeat:no-repeat;}
-.cookie-left {clip-path:inset(0 50% 0 0); animation:splitLeft 1.8s ease-in-out forwards;}
-.cookie-right {clip-path:inset(0 0 0 50%);animation:splitRight 1.8s ease-in-out forwards;}
-.cookie-note {position:absolute;z-index:-1;left:50%;top:88px;transform:translateX(-50%);background:#fff4d9;box-shadow:0 2px 12px #b08c6b55;border-radius:5px;padding:18px 25px;font-size:24px;animation:paper 1.8s ease forwards;}
+.cookie-left {clip-path:inset(0 50% 0 0); animation:splitLeft 3s ease-in-out forwards;}
+.cookie-right {clip-path:inset(0 0 0 50%);animation:splitRight 3s ease-in-out forwards;}
+.cookie-note {position:absolute;z-index:-1;left:50%;top:88px;transform:translateX(-50%);background:#fff4d9;box-shadow:0 2px 12px #b08c6b55;border-radius:5px;padding:18px 25px;font-size:24px;animation:paper 3s ease forwards;}
 @keyframes splitLeft {0%,28%{transform:translateX(-50%) rotate(0)} 65%,100%{transform:translateX(-81%) rotate(-12deg)}}
 @keyframes splitRight {0%,28%{transform:translateX(-50%) rotate(0)} 65%,100%{transform:translateX(-19%) rotate(12deg)}}
 @keyframes paper {0%,35%{opacity:0;transform:translate(-50%,12px) scale(.35)} 72%,100%{opacity:1;transform:translate(-50%,0) scale(1)}}
@@ -243,7 +284,7 @@ if not st.session_state.recorded:
             cookie_image = base64.b64encode((ROOT / "fortune_cookie.png").read_bytes()).decode("ascii")
             stage = st.empty()
             stage.markdown(f'''<div class="cookie-stage"><div class="cookie-note">💌</div><div class="cookie-half cookie-left" style="background-image:url(data:image/png;base64,{cookie_image})"></div><div class="cookie-half cookie-right" style="background-image:url(data:image/png;base64,{cookie_image})"></div></div><div style="text-align:center;color:#976045">🍪 마음쿠키를 여는 중...</div>''', unsafe_allow_html=True)
-            time.sleep(1.85)
+            time.sleep(3.05)
             stage.empty()
             st.rerun()
 
@@ -251,6 +292,8 @@ if st.session_state.recorded and st.session_state.result:
     main, extra_type, extra = st.session_state.result
     st.success("오늘의 마음이 선생님께 전달되었어요. 🍀")
     st.markdown("### 🍪 오늘의 마음 메시지")
+    feelings = " · ".join(escape(name) for name in st.session_state.selected)
+    st.markdown(f'<div class="selected-feelings"><strong>💗 내가 고른 감정</strong><div>{feelings}</div></div>', unsafe_allow_html=True)
     paragraphs = "".join(f"<p>{escape(p)}</p>" for p in main.split("\n\n"))
     st.markdown(f'<div class="cookie-message">{paragraphs}</div>', unsafe_allow_html=True)
     st.write("")

@@ -1235,6 +1235,48 @@ h1,h2,h3 {color:#654435;}
 @keyframes splitLeft {0%,28%{transform:translateX(-50%) rotate(0)} 65%,100%{transform:translateX(-81%) rotate(-12deg)}}
 @keyframes splitRight {0%,28%{transform:translateX(-50%) rotate(0)} 65%,100%{transform:translateX(-19%) rotate(12deg)}}
 @keyframes paper {0%,35%{opacity:0;transform:translate(-50%,12px) scale(.35)} 72%,100%{opacity:1;transform:translate(-50%,0) scale(1)}}
+
+/* 감정 카드: 작은 화면에서도 3열을 유지합니다.
+   Streamlit은 모바일에서 st.columns를 기본적으로 세로로 쌓기 때문에,
+   감정 탭 안의 행에만 가로 배치를 다시 적용합니다. */
+@media (max-width: 640px) {
+  .block-container {
+    padding-left: 0.8rem !important;
+    padding-right: 0.8rem !important;
+  }
+  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    gap: 0.4rem !important;
+  }
+  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+    flex: 1 1 0% !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  [data-testid="stTabs"] [data-testid="stColumn"] [data-testid="stButton"],
+  [data-testid="stTabs"] [data-testid="column"] [data-testid="stButton"] {
+    width: 100% !important;
+  }
+  [data-testid="stTabs"] [data-testid="stButton"] button {
+    width: 100% !important;
+    min-height: 42px !important;
+    padding: 0.32rem 0.09rem !important;
+    border-radius: 11px !important;
+    font-size: clamp(0.73rem, 3.3vw, 0.9rem) !important;
+    line-height: 1.2 !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    overflow-wrap: anywhere !important;
+  }
+  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] [data-testid="stVerticalBlock"] {
+    gap: 0.3rem !important;
+  }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1279,7 +1321,7 @@ for tab, (category, title) in zip(st.tabs(list(TABS.values())), TABS.items()):
         if not subset:
             st.caption("해당하는 감정 카드가 없어요.")
         for start in range(0, len(subset), 3):
-            for col, emotion in zip(st.columns(3), subset[start:start + 3]):
+            for col, emotion in zip(st.columns(3, gap="small"), subset[start:start + 3]):
                 name = emotion["name"]
                 active = name in st.session_state.selected
                 with col:

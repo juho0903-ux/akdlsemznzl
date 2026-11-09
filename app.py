@@ -2,6 +2,11 @@
 GitHub에서 같은 이름의 파일로 교체하면 자동 배포됩니다.
 """
 import base64
+import hashlib
+import hmac
+import secrets
+import threading
+import time as clock
 from difflib import SequenceMatcher
 from datetime import datetime
 from html import escape
@@ -27,7 +32,8 @@ STUDENTS = [
 ]
 STUDENT_OPTIONS = [f"{i}. {name}" for i, name in enumerate(STUDENTS, 1)]
 TABS = {"positive": "☀️ 밝은 마음", "negative": "🌧️ 무거운 마음", "mixed": "🌈 여러 빛깔의 마음"}
-HEADERS = ["제출 시각(한국)", "번호", "이름", "감정 1", "감정 2", "담임에게 보내는 말", "마음쿠키 메시지", "추가 활동 유형", "추가 활동 내용", "감정을 고른 이유"]
+HEADERS = ["제출 시각(한국)", "번호", "이름", "감정 1", "감정 2", "담임에게 보내는 말", "마음쿠키 메시지", "추가 활동 유형", "추가 활동 내용", "감정을 고른 이유", "선생님 답장"]
+AUTH_HEADERS = ["번호", "이름", "최초 등록 코드(교사 배부)", "비밀 코드 해시", "솔트"]
 
 # 기존 감정 데이터와 메시지 생성 방식을 유지합니다.
 POSITIVE_CLOSINGS = [
@@ -149,14 +155,19 @@ def sheet_is_configured():
         return False
 
 
-def get_sheet():
+@st.cache_resource
+
+def google_book():
     creds_info = dict(st.secrets["gcp_service_account"])
     credentials = Credentials.from_service_account_info(
         creds_info,
         scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.readonly"],
     )
-    client = gspread.authorize(credentials)
-    book = client.open_by_key(st.secrets["spreadsheet_id"])
+    return gspread.authorize(credentials).open_by_key(st.secrets["spreadsheet_id"])
+
+
+def get_sheet():
+    book = google_book()
     try:
         sheet = book.worksheet("마음기록")
     except gspread.WorksheetNotFound:
@@ -164,18 +175,93 @@ def get_sheet():
     if sheet.col_count < len(HEADERS):
         sheet.resize(cols=len(HEADERS))
     existing = sheet.row_values(1)
-    # 이전 9열 기록을 지우거나 순서를 바꾸지 않고 J열만 안전하게 추가합니다.
     if not existing:
-        sheet.update("A1:J1", [HEADERS])
+        sheet.update("A1:K1", [HEADERS])
         sheet.freeze(rows=1)
     elif existing[:9] == HEADERS[:9]:
-        if len(existing) < 10 or not existing[9]:
-            sheet.update_acell("J1", HEADERS[9])
-        elif existing[9] != HEADERS[9]:
-            raise RuntimeError("J열 제목이 다른 데이터와 충돌합니다. 기존 기록 보호를 위해 저장을 중단했습니다.")
-    elif existing != HEADERS:
-        raise RuntimeError("'마음기록' 시트 제목이 예상과 다릅니다. 기존 기록 보호를 위해 저장을 중단했습니다.")
+        for idx in (9, 10):
+            if len(existing) <= idx or not existing[idx]:
+                sheet.update_cell(1, idx + 1, HEADERS[idx])
+            elif existing[idx] != HEADERS[idx]:
+                raise RuntimeError("마음기록 시트의 J/K열 제목이 예상과 다릅니다. 기존 기록은 유지했습니다.")
+    else:
+        raise RuntimeError("마음기록 시트의 기존 열 제목이 예상과 다릅니다. 기존 기록은 유지했습니다.")
     return sheet
+
+
+def get_auth_sheet():
+    book = google_book()
+    try:
+        sheet = book.worksheet("학생인증")
+    except gspread.WorksheetNotFound:
+        sheet = book.add_worksheet(title="학생인증", rows=100, cols=5)
+    if sheet.col_count < 5:
+        sheet.resize(cols=5)
+    values = sheet.get_all_values()
+    if not values:
+        # 최초 1회만 등록 코드를 생성합니다. 공개 앱 화면에는 절대 표시하지 않습니다.
+        rows = [AUTH_HEADERS] + [
+            [str(i), name, secrets.token_urlsafe(9), "", ""]
+            for i, name in enumerate(STUDENTS, 1)
+        ]
+        sheet.update(f"A1:E{len(rows)}", rows, value_input_option="RAW")
+        sheet.freeze(rows=1)
+    elif values[0][:5] != AUTH_HEADERS:
+        raise RuntimeError("학생인증 시트의 제목이 맞지 않습니다.")
+    return sheet
+
+
+def auth_record(number):
+    sheet = get_auth_sheet()
+    row_idx = number + 1
+    values = sheet.row_values(row_idx)
+    if len(values) < 2 or str(values[0]) != str(number) or values[1] != STUDENTS[number - 1]:
+        raise RuntimeError("학생인증 명단을 확인해 주세요.")
+    return sheet, row_idx, values + [""] * (5 - len(values))
+
+
+def hash_code(code, salt):
+    # 개인 코드는 평문으로 보관하지 않습니다.
+    return hashlib.pbkdf2_hmac("sha256", code.encode("utf-8"), bytes.fromhex(salt), 310000).hex()
+
+
+@st.cache_resource
+
+def login_limits():
+    return {"lock": threading.Lock(), "events": {}}
+
+
+def is_rate_limited(number):
+    limit = login_limits()
+    now = clock.monotonic()
+    with limit["lock"]:
+        attempts = [t for t in limit["events"].get(number, []) if now - t < 900]
+        limit["events"][number] = attempts
+        return len(attempts) >= 8
+
+
+def note_failed_attempt(number):
+    limit = login_limits()
+    with limit["lock"]:
+        limit["events"].setdefault(number, []).append(clock.monotonic())
+
+
+def clear_failed_attempts(number):
+    limit = login_limits()
+    with limit["lock"]:
+        limit["events"].pop(number, None)
+
+
+def student_replies(number):
+    # 이미 기록된 모든 메시지 중 학생 번호가 일치하며 K열에 답장이 있는 것만 보여 줍니다.
+    # 해당 호출은 서버에서 인증 후에만 일어납니다.
+    sheet = get_sheet()
+    rows = sheet.get_all_values()[1:]
+    replies = []
+    for row in rows:
+        if len(row) >= 11 and row[1].strip() == str(number) and row[2].strip() == STUDENTS[number - 1] and row[10].strip():
+            replies.append({"date": row[0], "note": row[5] if len(row) > 5 else "", "reply": row[10]})
+    return list(reversed(replies))[:20]
 
 
 def safe_cell(text):
@@ -1393,10 +1479,37 @@ h1,h2,h3 {color:#654435;}
     gap: 0.3rem !important;
   }
 }
+/* 배포자가 밝은 색 배경을 사용하므로, 브라우저의 어두운 테마에서도
+   문구와 입력 요소의 대비가 유지되도록 명시합니다. */
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {color:#352c27 !important; color-scheme:light !important;}
+.stApp [data-testid="stMarkdownContainer"],
+.stApp [data-testid="stWidgetLabel"],
+.stApp [data-testid="stCaptionContainer"],
+.stApp [data-testid="stSelectbox"] label,
+.stApp [data-testid="stTextInput"] label,
+.stApp [data-testid="stTextArea"] label {color:#46352d !important;}
+.stApp div[data-baseweb="select"] > div,
+.stApp div[data-baseweb="input"] > div,
+.stApp div[data-baseweb="textarea"] > div {
+  background:#fffdf9 !important; color:#302720 !important; border-color:#b6a69c !important;
+}
+.stApp input, .stApp textarea {color:#302720 !important; -webkit-text-fill-color:#302720 !important;}
+.stApp input::placeholder, .stApp textarea::placeholder {color:#776b63 !important; -webkit-text-fill-color:#776b63 !important;}
+.stApp [data-testid="stButton"] button[kind="secondary"] {background:#ffffff !important; color:#352c27 !important; border:1px solid #b6a69c !important;}
+.stApp [data-testid="stButton"] button[kind="primary"] {background:#a4434b !important; color:#ffffff !important; border:1px solid #a4434b !important;}
+.stApp [data-testid="stTabs"] button {color:#493b32 !important;}
+.stApp [data-testid="stAlert"] {background:#edf4fc !important; color:#243247 !important;}
+.stApp [data-testid="stAlert"] * {color:#243247 !important;}
+.stApp [data-testid="stExpander"] {background:#fffdf9 !important; border-color:#b6a69c !important;}
+@media (max-width:640px) {
+  .block-container {padding-top:0.8rem !important;}
+  .stApp h1 {font-size:1.85rem !important;}
+}
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🍪 오늘의 마음쿠키")
+st.caption("💡 화면이 잘 보이지 않으면 오른쪽 위 ⋮ 메뉴의 설정(Settings)에서 테마를 Light로 변경해 주세요. (기본 화면은 밝은 색으로 표시됩니다.)")
 st.write("오늘 내 마음에 가장 가까운 감정을 **1~2개** 골라서 쿠키를 열어 봐요.")
 st.caption("감정에는 정답이 없어요. 오늘의 마음을 있는 그대로 선택해 주세요.")
 
@@ -1405,7 +1518,94 @@ if not configured:
     st.warning("선생님이 구글 스프레드시트 연결을 마치면 사용할 수 있어요. 아직 기록이 저장되지 않기 때문에 제출 기능을 잠시 닫아 두었어요.")
 
 student_label = st.selectbox("📋 번호와 이름을 선택해 주세요", ["번호와 이름 선택"] + STUDENT_OPTIONS, index=0)
-st.caption("선택한 번호와 이름, 감정, 선생님께 남긴 말이 선생님 전용 기록에 저장됩니다. 다른 학생은 기록을 볼 수 없어요.")
+st.caption("감정과 남긴 말은 선생님 전용 구글 스프레드시트에 기록됩니다. 답장은 본인 인증 뒤에만 확인할 수 있어요.")
+
+if "verified_student" not in st.session_state:
+    st.session_state.verified_student = None
+if st.session_state.verified_student is not None and student_label != STUDENT_OPTIONS[st.session_state.verified_student - 1]:
+    st.session_state.verified_student = None
+
+if student_label == "번호와 이름 선택":
+    st.info("먼저 번호와 이름을 선택해 주세요.")
+    st.stop()
+
+number = STUDENT_OPTIONS.index(student_label) + 1
+if not configured:
+    st.stop()
+
+if st.session_state.verified_student != number:
+    st.markdown("### 🔐 나만의 비밀 코드")
+    try:
+        auth_sheet, auth_row, record = auth_record(number)
+    except Exception:
+        st.error("본인 확인 준비가 되지 않았어요. 선생님께 알려 주세요.")
+        st.stop()
+    if is_rate_limited(number):
+        st.warning("인증 시도가 많아 잠시 이용할 수 없어요. 15분 뒤 다시 시도하거나 선생님께 알려 주세요.")
+        st.stop()
+    if not record[3]:
+        st.info("처음 방문했나요? 선생님이 알려 준 1회용 등록 코드로 나만의 비밀 코드를 만들어요.")
+        with st.form("create_account"):
+            setup_code = st.text_input("선생님이 나눠 준 등록 코드", type="password")
+            new_code = st.text_input("앞으로 사용할 비밀 코드 (영문+숫자, 8자 이상)", type="password")
+            new_code_again = st.text_input("비밀 코드 다시 입력", type="password")
+            submitted = st.form_submit_button("내 비밀 코드 등록하기", use_container_width=True)
+        if submitted:
+            # 재확인해 다른 접속에서 먼저 등록한 계정의 덮어쓰기를 방지합니다.
+            auth_sheet, auth_row, record = auth_record(number)
+            if record[3]:
+                st.error("이미 등록된 계정입니다. 화면을 새로고침해 로그인해 주세요.")
+            elif not hmac.compare_digest(setup_code, record[2]):
+                note_failed_attempt(number)
+                st.error("등록 코드가 맞지 않아요. 선생님께 받은 코드를 확인하세요.")
+            elif not (8 <= len(new_code) <= 32 and any(c.isalpha() for c in new_code) and any(c.isdigit() for c in new_code)):
+                st.error("영문과 숫자가 포함된 8~32자리 코드를 사용해 주세요.")
+            elif new_code != new_code_again:
+                st.error("두 비밀 코드가 서로 달라요.")
+            else:
+                try:
+                    salt = secrets.token_hex(16)
+                    auth_sheet.update(f"D{auth_row}:E{auth_row}", [[hash_code(new_code, salt), salt]], value_input_option="RAW")
+                    auth_sheet.update_acell(f"C{auth_row}", "")
+                    clear_failed_attempts(number)
+                    st.session_state.verified_student = number
+                    st.rerun()
+                except Exception:
+                    st.error("비밀 코드를 저장하지 못했어요. 선생님께 알려 주세요.")
+    else:
+        with st.form("login_account"):
+            code = st.text_input("나만의 비밀 코드", type="password")
+            login = st.form_submit_button("내 마음쿠키 열기 · 답장 확인", use_container_width=True)
+        if login:
+            if record[4] and hmac.compare_digest(hash_code(code, record[4]), record[3]):
+                clear_failed_attempts(number)
+                st.session_state.verified_student = number
+                st.rerun()
+            else:
+                note_failed_attempt(number)
+                st.error("비밀 코드가 일치하지 않아요.")
+    st.caption("코드를 잊었다면 선생님께 직접 초기화를 요청하세요. 다른 친구의 코드를 사용하면 안 돼요.")
+    st.stop()
+
+st.success("🔓 본인 확인 완료")
+with st.expander("💌 선생님의 답장 확인", expanded=True):
+    if st.button("답장 새로고침", key="refresh_replies"):
+        st.rerun()
+    try:
+        replies = student_replies(number)
+    except Exception:
+        st.warning("답장을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
+        replies = []
+    if replies:
+        st.write(f"선생님이 남긴 답장 **{len(replies)}개**를 확인할 수 있어요.")
+        for reply in replies:
+            st.markdown(f"**📅 {escape(reply['date'])}에 보낸 마음**")
+            if reply["note"]:
+                st.caption("내가 보낸 말: " + reply["note"])
+            st.info("💌 선생님의 답장\n\n" + reply["reply"])
+    else:
+        st.caption("아직 도착한 답장이 없어요. 선생님이 답장을 작성하면 이곳에서 볼 수 있어요.")
+
 if st.session_state.pop("reset_requested", False):
     st.session_state.selected = []
     st.session_state.result = None
@@ -1521,4 +1721,4 @@ if st.session_state.recorded and st.session_state.result:
         st.rerun()
 
 st.divider()
-st.caption("이름을 고르는 방식은 본인 확인 기능이 아니에요. 반드시 자기 이름을 선택해 주세요.")
+st.caption("비밀 코드는 다른 친구에게 알려주지 마세요. 급한 일은 답장을 기다리지 말고 선생님께 직접 이야기하세요.")

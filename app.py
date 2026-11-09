@@ -176,7 +176,7 @@ def get_sheet():
         sheet.resize(cols=len(HEADERS))
     existing = sheet.row_values(1)
     if not existing:
-        sheet.update("A1:K1", [HEADERS])
+        sheet.update(range_name="A1:K1", values=[HEADERS])
         sheet.freeze(rows=1)
     elif existing[:9] == HEADERS[:9]:
         for idx in (9, 10):
@@ -204,7 +204,7 @@ def get_auth_sheet():
             [str(i), name, secrets.token_urlsafe(9), "", ""]
             for i, name in enumerate(STUDENTS, 1)
         ]
-        sheet.update(f"A1:E{len(rows)}", rows, value_input_option="RAW")
+        sheet.update(range_name=f"A1:E{len(rows)}", values=rows, value_input_option="RAW")
         sheet.freeze(rows=1)
     elif values[0][:5] != AUTH_HEADERS:
         raise RuntimeError("학생인증 시트의 제목이 맞지 않습니다.")
@@ -1565,7 +1565,7 @@ if st.session_state.verified_student != number:
             else:
                 try:
                     salt = secrets.token_hex(16)
-                    auth_sheet.update(f"D{auth_row}:E{auth_row}", [[hash_code(new_code, salt), salt]], value_input_option="RAW")
+                    auth_sheet.update(range_name=f"D{auth_row}:E{auth_row}", values=[[hash_code(new_code, salt), salt]], value_input_option="RAW")
                     auth_sheet.update_acell(f"C{auth_row}", "")
                     clear_failed_attempts(number)
                     st.session_state.verified_student = number

@@ -2,6 +2,7 @@
 GitHub에서 같은 이름의 파일로 교체하면 자동 배포됩니다.
 """
 import base64
+from difflib import SequenceMatcher
 from datetime import datetime
 from html import escape
 import json
@@ -26,7 +27,7 @@ STUDENTS = [
 ]
 STUDENT_OPTIONS = [f"{i}. {name}" for i, name in enumerate(STUDENTS, 1)]
 TABS = {"positive": "☀️ 밝은 마음", "negative": "🌧️ 무거운 마음", "mixed": "🌈 여러 빛깔의 마음"}
-HEADERS = ["제출 시각(한국)", "번호", "이름", "감정 1", "감정 2", "담임에게 보내는 말", "마음쿠키 메시지", "추가 활동 유형", "추가 활동 내용"]
+HEADERS = ["제출 시각(한국)", "번호", "이름", "감정 1", "감정 2", "담임에게 보내는 말", "마음쿠키 메시지", "추가 활동 유형", "추가 활동 내용", "감정을 고른 이유"]
 
 # 기존 감정 데이터와 메시지 생성 방식을 유지합니다.
 POSITIVE_CLOSINGS = [
@@ -160,11 +161,20 @@ def get_sheet():
         sheet = book.worksheet("마음기록")
     except gspread.WorksheetNotFound:
         sheet = book.add_worksheet(title="마음기록", rows=1500, cols=len(HEADERS))
-    if sheet.row_values(1) != HEADERS:
-        if sheet.row_values(1):
-            raise RuntimeError("'마음기록' 시트의 첫 줄 제목이 예상과 다릅니다. 데이터를 덮어쓰지 않기 위해 기록을 중단했습니다.")
-        sheet.update("A1:I1", [HEADERS])
+    if sheet.col_count < len(HEADERS):
+        sheet.resize(cols=len(HEADERS))
+    existing = sheet.row_values(1)
+    # 이전 9열 기록을 지우거나 순서를 바꾸지 않고 J열만 안전하게 추가합니다.
+    if not existing:
+        sheet.update("A1:J1", [HEADERS])
         sheet.freeze(rows=1)
+    elif existing[:9] == HEADERS[:9]:
+        if len(existing) < 10 or not existing[9]:
+            sheet.update_acell("J1", HEADERS[9])
+        elif existing[9] != HEADERS[9]:
+            raise RuntimeError("J열 제목이 다른 데이터와 충돌합니다. 기존 기록 보호를 위해 저장을 중단했습니다.")
+    elif existing != HEADERS:
+        raise RuntimeError("'마음기록' 시트 제목이 예상과 다릅니다. 기존 기록 보호를 위해 저장을 중단했습니다.")
     return sheet
 
 
@@ -176,12 +186,13 @@ def safe_cell(text):
     return value
 
 
-def save_submission(number, name, selected, message_to_teacher, result):
+def save_submission(number, name, selected, message_to_teacher, reason, result):
     main, extra_type, extra = result
     row = [
         datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"),
         number, name, selected[0], selected[1] if len(selected) > 1 else "",
         safe_cell(message_to_teacher), main, "마음 질문" if extra_type == "question" else "작은 한 걸음", extra,
+        safe_cell(reason),
     ]
     get_sheet().append_row(row, value_input_option="RAW", insert_data_option="INSERT_ROWS")
 
@@ -1217,6 +1228,111 @@ def add_matching_sentence(main, selected):
     pool = [x for x in SENTENCES_BY_FAMILY[family] if x not in used]
     return main + "\n\n" + random.choice(pool or SENTENCES_BY_FAMILY[family])
 
+# 학생의 일상 표현으로도 현재 감정 카드를 찾을 수 있게 합니다.
+# 같은 의미로 보이는 검색어만 수동 연결하고, 범주 전체를 무작정 섞지 않습니다.
+SEARCH_ALIASES = {
+    "행복": ["행복한", "기쁜", "즐거운"],
+    "기분좋": ["기쁜", "즐거운", "상쾌한"],
+    "좋아": ["즐거운", "행복한"],
+    "신남": ["신나는", "활기 넘치는", "쾌활한"],
+    "신나": ["신나는", "활기 넘치는", "쾌활한"],
+    "텐션": ["신나는", "활기 넘치는"],
+    "에너지": ["생기가 도는", "활기 넘치는"],
+    "활력": ["생기가 도는", "활기 넘치는"],
+    "설렘": ["설레는", "기대되는"],
+    "두근": ["설레는", "떨리는", "긴장되는"],
+    "기대감": ["기대되는", "설레는"],
+    "뿌듯": ["뿌듯한", "자랑스러운", "만족스러운"],
+    "자신감": ["용기 나는", "든든한"],
+    "자신있": ["용기 나는", "든든한"],
+    "보람": ["뿌듯한", "만족스러운", "흐뭇한"],
+    "고마움": ["고마운", "감사한"],
+    "감동": ["가슴뭉클한", "감격스러운"],
+    "포근": ["포근한", "따뜻한", "푸근한"],
+    "사랑": ["따뜻한", "다정한", "달콤한"],
+    "안도": ["안심이 되는", "마음이 놓이는", "후련한"],
+    "편함": ["편안한", "여유로운", "느긋한"],
+    "편해": ["편안한", "마음이 놓이는"],
+    "해방감": ["홀가분한", "후련한"],
+    "홀가분": ["홀가분한", "가벼운"],
+    "짜증": ["화나는", "열받은", "성가신"],
+    "빡침": ["화나는", "열받은"],
+    "빡쳐": ["화나는", "열받은"],
+    "분노": ["화나는", "격분한", "분한"],
+    "억울": ["억울한", "분한"],
+    "화남": ["화나는", "열받은"],
+    "화나": ["화나는", "열받은"],
+    "속상": ["속상한", "서운한", "실망한"],
+    "우울": ["우울한", "울적한", "서글픈"],
+    "눈물": ["슬픈", "서글픈", "속상한"],
+    "슬픔": ["슬픈", "서글픈", "울적한"],
+    "외로움": ["외로운", "쓸쓸한", "공허한"],
+    "외롭": ["외로운", "쓸쓸한"],
+    "소외": ["외로운", "서운한"],
+    "서운함": ["서운한", "섭섭한"],
+    "섭섭함": ["섭섭한", "서운한"],
+    "허전": ["공허한", "쓸쓸한"],
+    "불안감": ["불안한", "초조한", "걱정스러운"],
+    "걱정": ["걱정스러운", "불안한", "근심스러운"],
+    "긴장감": ["긴장되는", "떨리는", "초조한"],
+    "스트레스": ["지친", "답답한", "불편한"],
+    "압박감": ["답답한", "초조한", "걱정스러운"],
+    "답답함": ["답답한", "갑갑한", "막막한"],
+    "막막": ["막막한", "암담한"],
+    "무서움": ["무서운", "겁나는", "두려운"],
+    "공포": ["무서운", "겁나는", "오싹한"],
+    "당황": ["당혹스런", "난감한", "어리둥절한"],
+    "쪽팔": ["창피한", "민망한"],
+    "민망함": ["민망한", "부끄러운"],
+    "어색함": ["어색한", "서먹한"],
+    "심심": ["심심한", "지루한", "따분한"],
+    "노잼": ["지루한", "따분한"],
+    "귀찮": ["귀찮은", "무기력한"],
+    "피곤": ["피곤한", "지친"],
+    "졸림": ["피곤한", "지친"],
+    "힘듦": ["지친", "괴로운", "피곤한"],
+    "힘들": ["지친", "괴로운", "피곤한"],
+    "번아웃": ["지친", "무기력한"],
+    "무기력": ["무기력한", "지친"],
+    "실패": ["실망한", "낙담한", "속상한"],
+    "실망감": ["실망한", "낙담한"],
+    "혼란": ["어리둥절한", "멍한", "당혹스런"],
+    "멍때림": ["멍한", "얼떨떨한"],
+}
+
+
+def normalize_search(text):
+    return "".join(str(text).lower().split()).replace("·", "").replace("!", "")
+
+
+def search_emotions(query):
+    """정확한 검색 결과 먼저, 그다음 비슷한 표현. 전혀 무관한 후보는 제외."""
+    query = normalize_search(query)
+    if not query:
+        return {e["name"]: 1.0 for e in DATA}
+    scores = {}
+    for e in DATA:
+        name = e["name"]
+        norm = normalize_search(name)
+        if query == norm:
+            scores[name] = 100.0
+        elif query in norm or (len(norm) >= 2 and norm in query):
+            scores[name] = 90.0
+    for alias, candidates in SEARCH_ALIASES.items():
+        if query == alias or (len(query) >= 2 and query in alias) or (len(alias) >= 2 and alias in query):
+            for i, name in enumerate(candidates):
+                if name in BY_NAME:
+                    scores[name] = max(scores.get(name, 0.0), 78.0 - i)
+    if not scores and len(query) >= 2:
+        # 오타 보정은 높은 유사도에서만 제한적으로 동작합니다.
+        for e in DATA:
+            name = e["name"]
+            similarity = SequenceMatcher(None, query, normalize_search(name)).ratio()
+            if similarity >= 0.72:
+                scores[name] = 60.0 + similarity
+    return dict(sorted(scores.items(), key=lambda pair: (-pair[1], pair[0])))
+
+
 st.markdown("""
 <style>
 .stApp { background: linear-gradient(155deg, #fff9f1 0%, #fff6f0 70%, #fffdfa 100%); }
@@ -1295,6 +1411,7 @@ if st.session_state.pop("reset_requested", False):
     st.session_state.result = None
     st.session_state.recorded = False
     st.session_state["teacher_note"] = ""
+    st.session_state["emotion_reason"] = ""
 
 if "selected" not in st.session_state:
     st.session_state.selected = []
@@ -1312,12 +1429,21 @@ if st.session_state.student_id != student_label:
     st.session_state.recorded = False
     st.session_state.student_id = student_label
     st.session_state["teacher_note"] = ""
+    st.session_state["emotion_reason"] = ""
 
 st.markdown("### 🎨 오늘의 감정 카드")
-search = st.text_input("감정 검색", placeholder="예: 설레는, 서운한, 기쁜")
+search = st.text_input("감정 검색", placeholder="예: 짜증, 신남, 허전함, 설렘, 피곤해")
+search_scores = search_emotions(search)
+if search.strip():
+    if search_scores:
+        st.caption(f"'{search.strip()}'와 비슷한 감정 {len(search_scores)}개를 찾았어요. 가장 가까운 표현부터 보여줘요.")
+    else:
+        st.caption("비슷한 감정을 찾지 못했어요. 다른 말로 검색해 보거나 카드에서 골라 보세요.")
 for tab, (category, title) in zip(st.tabs(list(TABS.values())), TABS.items()):
     with tab:
-        subset = [e for e in DATA if e["category"] == category and search.strip() in e["name"]]
+        subset = [e for e in DATA if e["category"] == category and e["name"] in search_scores]
+        if search.strip():
+            subset.sort(key=lambda e: -search_scores[e["name"]])
         if not subset:
             st.caption("해당하는 감정 카드가 없어요.")
         for start in range(0, len(subset), 3):
@@ -1336,6 +1462,14 @@ for tab, (category, title) in zip(st.tabs(list(TABS.values())), TABS.items()):
                         st.rerun()
 
 st.write("**내가 고른 마음:** " + (" · ".join(st.session_state.selected) if st.session_state.selected else "아직 선택하지 않았어요"))
+st.markdown("### ✏️ 이 감정을 고른 이유")
+st.text_area(
+    "오늘 이런 감정이 든 이유는 무엇인가요? (선택)",
+    key="emotion_reason", height=110, max_chars=700,
+    placeholder="예: 친구가 먼저 인사해 줘서 기뻤어요. / 발표를 앞두고 있어서 긴장돼요.",
+    disabled=st.session_state.recorded,
+)
+st.caption("적지 않아도 괜찮아요. 적은 내용은 담임 선생님만 확인하는 구글 스프레드시트 기록에 함께 저장돼요.")
 st.markdown("### 💌 담임 선생님께 전하고 싶은 말")
 st.write("평소 얼굴을 보고 말하기 어려웠던 이야기나, 오늘 남기고 싶은 말이 있다면 자유롭게 적어 주세요.")
 st.text_area("선생님께 보내는 말 (선택)", key="teacher_note", height=130, max_chars=1000, placeholder="꼭 적지 않아도 돼요. 선생님께 전하고 싶은 말이 있을 때 사용해 주세요.", disabled=st.session_state.recorded)
@@ -1349,7 +1483,7 @@ if not st.session_state.recorded:
         name = STUDENTS[number - 1]
         # 먼저 기록 성공을 확인합니다. 실패하면 애니메이션이나 완료 메시지를 보이지 않습니다.
         try:
-            save_submission(number, name, list(st.session_state.selected), st.session_state.teacher_note, result)
+            save_submission(number, name, list(st.session_state.selected), st.session_state.teacher_note, st.session_state.emotion_reason, result)
         except Exception:
             st.error("지금은 기록을 저장하지 못했어요. 쿠키를 다시 눌러 주세요. 계속 안 되면 선생님께 알려 주세요.")
         else:

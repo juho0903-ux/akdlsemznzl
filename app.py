@@ -37,6 +37,307 @@ HEADERS = ["제출 시각(한국)", "번호", "이름", "감정 1", "감정 2", 
 AUTH_HEADERS = ["번호", "이름", "개인 코드"]
 AUTH_COOKIE_NAME = "mindcookie_remembered_student_v1"
 
+# 감정별 마음 메시지와 분리된 랜덤 포춘쿠키 (스프레드시트 기록 없음).
+FORTUNE_ITEMS = [{'kind': '속담', 'message': '시작이 반이다.', 'detail': '시작한 순간부터 이미 앞으로 나아가고 있다는 뜻이에요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '티끌 모아 태산.', 'detail': '아주 작은 것도 모이면 큰 힘이 돼요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '천 리 길도 한 걸음부터.', 'detail': '멀리 있는 목표도 첫걸음에서 출발해요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '백지장도 맞들면 낫다.', 'detail': '함께하면 어려운 일도 한결 수월해져요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '돌다리도 두들겨 보고 건너라.', 'detail': '익숙한 일도 한 번 더 살피면 좋아요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '가는 말이 고와야 오는 말이 곱다.', 'detail': '내가 건네는 말의 온도가 관계를 바꿀 수 있어요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '고래 싸움에 새우 등 터진다.', 'detail': '큰 다툼은 주변 사람에게도 영향을 줄 수 있어요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '낮말은 새가 듣고 밤말은 쥐가 듣는다.', 'detail': '말은 예상하지 못한 곳까지 전해질 수 있어요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '원숭이도 나무에서 떨어진다.', 'detail': '잘하는 사람도 실수할 때가 있어요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '공든 탑이 무너지랴.', 'detail': '정성껏 쌓아 온 노력에는 의미가 있어요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '호랑이도 제 말 하면 온다.', 'detail': '누군가 이야기를 나누다 그 사람을 만날 수도 있어요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '등잔 밑이 어둡다.', 'detail': '가까이에 있는 답을 놓치고 있지는 않을까요?', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '아는 길도 물어 가라.', 'detail': '확인하는 습관은 신중함의 한 방법이에요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '세 살 버릇 여든까지 간다.', 'detail': '오늘의 작은 습관이 미래의 나를 만들어요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '소 잃고 외양간 고친다.', 'detail': '나중에 후회하지 않도록 지금 살펴볼 것은 없을까요?', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '급할수록 돌아가라.', 'detail': '바쁠 때일수록 차분한 확인이 도움이 돼요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '우물 안 개구리.', 'detail': '세상은 내가 알고 있는 것보다 훨씬 넓을 수 있어요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '그림의 떡.', 'detail': '눈앞에 보여도 바로 얻을 수 없는 것이 있어요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '꿩 대신 닭.', 'detail': '원하던 것과 달라도 새로운 방법을 찾을 수 있어요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '하늘의 별 따기.', 'detail': '어려운 목표일수록 계획을 작게 나눠 보면 좋아요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '모로 가도 서울만 가면 된다.', 'detail': '목표에 이르는 방법은 하나만 있는 게 아니에요.', 'source': '우리말 속담'},
+ {'kind': '속담',
+  'message': '열 번 찍어 안 넘어가는 나무 없다.',
+  'detail': '꾸준함의 힘을 말하지만, 상대의 마음과 경계는 존중해야 해요.',
+  'source': '우리말 속담'},
+ {'kind': '속담', 'message': '개구리 올챙이 적 생각 못 한다.', 'detail': '지금의 나를 만든 지난 시간을 잊지 말아요.', 'source': '우리말 속담'},
+ {'kind': '속담', 'message': '하룻강아지 범 무서운 줄 모른다.', 'detail': '용기와 무모함의 차이를 생각해 볼 수 있어요.', 'source': '우리말 속담'},
+ {'kind': '짧은 생각',
+  'message': '가장 가까운 길이 언제나 가장 좋은 길은 아니에요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각', 'message': '작은 질문 하나가 생각의 방향을 바꾸기도 해요.', 'detail': '오늘의 짧은 생각 · 마음쿠키 창작', 'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각', 'message': '잘 듣는 사람은 말하지 않은 부분도 살펴봐요.', 'detail': '오늘의 짧은 생각 · 마음쿠키 창작', 'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각', 'message': '아는 것을 설명할 수 있다면 배움은 더 깊어져요.', 'detail': '오늘의 짧은 생각 · 마음쿠키 창작', 'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '다른 의견은 틀린 답이 아니라 새로운 창일 수도 있어요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각', 'message': '기록하지 않으면 사라질 생각도 한 줄이면 남아요.', 'detail': '오늘의 짧은 생각 · 마음쿠키 창작', 'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각', 'message': '오늘의 선택은 내일의 나에게 작은 편지가 돼요.', 'detail': '오늘의 짧은 생각 · 마음쿠키 창작', 'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '빠른 결론보다 좋은 질문이 더 멀리 갈 때도 있어요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '반짝이는 아이디어는 엉뚱한 순간에 찾아오기도 해요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각', 'message': '질문할 용기는 모르는 것을 인정할 때 시작돼요.', 'detail': '오늘의 짧은 생각 · 마음쿠키 창작', 'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각', 'message': '서로 다른 색이 모이면 새로운 풍경이 돼요.', 'detail': '오늘의 짧은 생각 · 마음쿠키 창작', 'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '모든 책의 첫 문장은 다음 장을 열기 위한 문이에요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '작은 차이를 알아보는 눈은 세상을 더 풍성하게 만들어요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '같은 장면도 서 있는 자리가 다르면 다르게 보여요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '말하기 전에 한 번 더 생각하면 말의 무게가 달라져요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '비교보다 관찰이 나를 더 정확히 보여 줄 때가 있어요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각', 'message': '익숙한 하루에도 처음 보는 장면은 숨어 있어요.', 'detail': '오늘의 짧은 생각 · 마음쿠키 창작', 'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각', 'message': '모든 길에는 지도가 없을 때도 있어요.', 'detail': '오늘의 짧은 생각 · 마음쿠키 창작', 'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '꼭 큰 사건이 있어야 기억에 남는 날이 되는 건 아니에요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각', 'message': '낯선 생각을 만날 때 생각의 키가 조금 자라요.', 'detail': '오늘의 짧은 생각 · 마음쿠키 창작', 'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '작은 변화는 자주 눈에 띄지 않지만 쌓이기도 해요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '언제나 정답보다 이유가 더 재미있는 문제도 있어요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각', 'message': '생각을 바꾸는 일은 졌다는 뜻이 아니에요.', 'detail': '오늘의 짧은 생각 · 마음쿠키 창작', 'source': '마음쿠키 창작'},
+ {'kind': '짧은 생각',
+  'message': '소중한 것은 눈에 띄지 않는 일상에 숨어 있기도 해요.',
+  'detail': '오늘의 짧은 생각 · 마음쿠키 창작',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘은 예상하지 못한 칭찬을 발견할지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '평소 지나치던 풍경이 오늘은 조금 다르게 보일지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '우연히 들은 말 한마디가 재미있는 생각으로 이어질 수 있어요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '작은 친절을 건넨 날에는 뜻밖의 미소를 만날지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘의 행운은 연필 끝에서 시작될지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘 처음 듣는 단어가 오래 기억에 남을지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '평소와 다른 길에서 새로운 장면을 발견할 수 있어요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘은 친구의 새로운 장점을 알아챌지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '가장 평범한 순간이 오늘의 작은 하이라이트가 될 수 있어요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '생각보다 빨리 해결되는 일이 하나쯤 있을지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '잠깐 멈췄을 때 재미있는 아이디어가 떠오를 수 있어요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘의 행운은 먼저 건네는 인사에 숨어 있을지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '작은 실수 덕분에 새로운 방법을 알게 될지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘은 듣던 노래의 새로운 부분이 귀에 들어올지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '우연히 펴 본 책에서 마음에 드는 문장을 만날 수 있어요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘은 나도 몰랐던 취향 하나를 발견할지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '조용한 순간에 좋은 생각이 찾아올지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘의 웃음은 계획에 없던 순간에 찾아올 수 있어요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '마음에 드는 색을 발견하는 작은 행운이 있을지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘은 오래 미뤄둔 작은 일을 끝낼 기회가 생길 수 있어요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '예상과 다른 답이 오히려 재미있는 시작이 될지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘의 행운은 새로운 질문 하나일지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '익숙한 사람과 조금 다른 이야기를 나누게 될지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘은 작은 성공을 스스로 알아챌지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '서랍 속 물건 하나가 반가운 기억을 꺼내 줄지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '우연히 본 문장이 하루의 제목이 될 수 있어요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘은 평소 몰랐던 장소의 이름을 알게 될지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '생각하지 못한 순간에 누군가의 배려를 발견할 수 있어요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘은 재미있는 비교 하나가 떠오를지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '무심코 한 선택이 새로운 취향으로 이어질 수도 있어요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘은 친구와 공통점 하나를 더 발견할지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '행운 메시지',
+  'message': '오늘의 작은 행운은 웃으며 마치는 대화일지도 몰라요.',
+  'detail': '미래를 맞히는 예언이 아니라 재미로 보는 문장이에요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 처음 보는 낱말 하나의 뜻을 찾아보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 고마운 사람에게 짧은 인사 건네기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 하늘의 색을 세 단어로 표현하기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 일상에서 동그란 물건 세 개 찾아보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 내 이름의 좋은 점 하나 떠올리기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 지금 생각나는 재미있는 질문 적기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 평소와 다른 길에서 간판 하나 읽어 보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 물 한 잔을 천천히 마셔 보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 오늘 본 색깔 중 가장 마음에 드는 색 고르기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 친구의 좋은 점 하나 찾아보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 10초 동안 눈을 감고 주변 소리 듣기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 읽고 싶은 책 제목 하나 찾아보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 지금 가장 궁금한 것 하나 적어 보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 처음 보는 것을 사진 대신 말로 설명해 보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 오늘의 기분을 날씨로 비유해 보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 재미있는 의성어 하나 만들어 보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 오늘 기억하고 싶은 순간을 한 문장으로 적기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 다른 사람의 말을 끊지 않고 끝까지 들어 보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 좋아하는 장소를 세 문장으로 소개해 보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'},
+ {'kind': '오늘의 작은 미션',
+  'message': '오늘의 미션: 평범한 물건에 새로운 이름을 붙여 보기.',
+  'detail': '마음이 내키면 해 보세요. 하지 않아도 괜찮아요.',
+  'source': '마음쿠키 창작'}]
+
+
 # 기존 감정 데이터와 메시지 생성 방식을 유지합니다.
 POSITIVE_CLOSINGS = [
     "그 좋은 기운이 오늘 하루에도 오래 이어지길 바라!",
@@ -282,16 +583,31 @@ def clear_failed_attempts(number):
         limit["events"].pop(number, None)
 
 
-def student_replies(number):
-    # 이미 기록된 모든 메시지 중 학생 번호가 일치하며 K열에 답장이 있는 것만 보여 줍니다.
-    # 해당 호출은 서버에서 인증 후에만 일어납니다.
-    sheet = get_sheet()
-    rows = sheet.get_all_values()[1:]
-    replies = []
+def student_history(number):
+    """Read-only, authenticated per-student history; every submission is a separate row.
+
+    No row is deleted/overwritten. K column is the teacher reply for that specific row.
+    """
+    rows = get_sheet().get_all_values()[1:]
+    history = []
     for row in rows:
-        if len(row) >= 11 and row[1].strip() == str(number) and row[2].strip() == STUDENTS[number - 1] and row[10].strip():
-            replies.append({"date": row[0], "note": row[5] if len(row) > 5 else "", "reply": row[10]})
-    return list(reversed(replies))[:20]
+        if len(row) < 3 or row[1].strip() != str(number) or row[2].strip() != STUDENTS[number - 1]:
+            continue
+        padded = (row + [""] * len(HEADERS))[:len(HEADERS)]
+        timestamp = padded[0].strip()
+        date = timestamp[:10] if len(timestamp) >= 10 else "날짜 미상"
+        history.append({
+            "date": date,
+            "timestamp": timestamp,
+            "emotions": [value for value in padded[3:5] if value.strip()],
+            "note": padded[5],
+            "cookie_message": padded[6],
+            "extra_type": padded[7],
+            "extra": padded[8],
+            "reason": padded[9],
+            "reply": padded[10],
+        })
+    return list(reversed(history))
 
 
 def safe_cell(text):
@@ -1547,6 +1863,11 @@ st.markdown("""
   }
   [data-testid="stTabs"] [data-testid="stHorizontalBlock"] [data-testid="stVerticalBlock"] {gap:0.3rem !important;}
 }
+
+.fortune-slip {background:var(--mc-surface);border:1px solid var(--mc-edge);border-radius:17px;padding:20px 17px;text-align:center;margin:10px 0 14px;}
+.fortune-slip .fortune-kind {color:var(--mc-muted);font-size:0.82rem;font-weight:700;letter-spacing:0.03em;}
+.fortune-slip .fortune-title {color:var(--mc-fg);font-size:1.24rem;line-height:1.7;font-weight:750;word-break:keep-all;margin:13px 0;}
+.fortune-slip .fortune-detail {color:var(--mc-muted);font-size:0.93rem;line-height:1.65;word-break:keep-all;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1574,7 +1895,7 @@ student_label = st.selectbox(
     ["번호와 이름 선택"] + STUDENT_OPTIONS,
     key="login_student_choice",
 )
-st.caption("감정과 남긴 말은 선생님 전용 구글 스프레드시트에 기록됩니다. 답장은 본인 인증 뒤에만 확인할 수 있어요.")
+st.caption("감정과 남긴 말은 선생님 전용 구글 스프레드시트에 기록됩니다. 지난 메시지와 답장은 본인 인증 뒤에만 확인할 수 있어요.")
 
 if student_label == "번호와 이름 선택":
     st.info("먼저 번호와 이름을 선택해 주세요.")
@@ -1631,23 +1952,60 @@ if st.button("이 기기에서 내 인증 해제하기", key="forget_this_device
     st.session_state.verified_student = None
     st.rerun()
 
-with st.expander("💌 선생님의 답장 확인", expanded=True):
-    if st.button("답장 새로고침", key="refresh_replies"):
+with st.expander("📚 나의 마음 기록 · 선생님 답장", expanded=True):
+    st.caption("이전에 보낸 마음과 선생님의 답장을 날짜별로 확인할 수 있어요. 기록은 덮어쓰지 않고 차곡차곡 쌓여요.")
+    if st.button("🔄 기록과 답장 새로고침", key="refresh_history"):
         st.rerun()
+    history_error = False
     try:
-        replies = student_replies(number)
+        history = student_history(number)
     except Exception:
-        st.warning("답장을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
-        replies = []
-    if replies:
-        st.write(f"선생님이 남긴 답장 **{len(replies)}개**를 확인할 수 있어요.")
-        for reply in replies:
-            st.markdown(f"**📅 {escape(reply['date'])}에 보낸 마음**")
-            if reply["note"]:
-                st.caption("내가 보낸 말: " + reply["note"])
-            st.info("💌 선생님의 답장\n\n" + reply["reply"])
-    else:
-        st.caption("아직 도착한 답장이 없어요. 선생님이 답장을 작성하면 이곳에서 볼 수 있어요.")
+        history_error = True
+        history = []
+        st.warning("기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
+    if history:
+        pending_count = sum(not entry["reply"].strip() for entry in history)
+        completed_count = len(history) - pending_count
+        st.caption(f"전체 {len(history)}건 · 답장 완료 {completed_count}건 · 답장 대기 {pending_count}건")
+        date_options = list(dict.fromkeys(entry["date"] for entry in history))
+        h_col1, h_col2 = st.columns(2)
+        with h_col1:
+            selected_date = st.selectbox("날짜별 보기", ["전체 날짜"] + date_options, key="history_date")
+        with h_col2:
+            selected_status = st.selectbox("답장 상태", ["전체", "답장 완료", "답장 대기"], key="history_status")
+        filtered_history = [entry for entry in history
+                            if (selected_date == "전체 날짜" or entry["date"] == selected_date)
+                            and (selected_status == "전체" or (bool(entry["reply"].strip()) == (selected_status == "답장 완료")))]
+        if not filtered_history:
+            st.info("선택한 조건에 해당하는 기록이 없어요.")
+        else:
+            # Limit initial render; every matching record remains accessible using the count selector.
+            show_limit = st.selectbox("표시할 기록", [10, 30, 100, "전체"], key="history_limit")
+            visible = filtered_history if show_limit == "전체" else filtered_history[:show_limit]
+            current_day = None
+            for index, entry in enumerate(visible):
+                if entry["date"] != current_day:
+                    current_day = entry["date"]
+                    st.markdown(f"#### 📅 {current_day}")
+                status_text = "💌 답장 완료" if entry["reply"].strip() else "⏳ 답장 대기"
+                with st.container(border=True):
+                    st.caption(f"{entry['timestamp']} · {status_text}")
+                    if entry["emotions"]:
+                        st.write("**내가 고른 감정:** " + " · ".join(entry["emotions"]))
+                    if entry["reason"].strip():
+                        st.write("**감정을 고른 이유:** " + entry["reason"])
+                    if entry["note"].strip():
+                        st.write("**선생님께 보낸 말:** " + entry["note"])
+                    else:
+                        st.caption("선생님께 남긴 메시지가 없는 날이에요.")
+                    if entry["reply"].strip():
+                        st.info("💌 선생님의 답장\n\n" + entry["reply"])
+                    else:
+                        st.caption("아직 선생님의 답장이 도착하지 않았어요.")
+            if len(visible) < len(filtered_history):
+                st.caption(f"총 {len(filtered_history)}건 중 {len(visible)}건만 표시 중입니다. '표시할 기록'을 바꾸면 더 볼 수 있어요.")
+    elif not history_error:
+        st.caption("아직 저장된 마음 기록이 없어요. 첫 번째 마음쿠키를 열어 보세요.")
 
 if st.session_state.pop("reset_requested", False):
     st.session_state.selected = []
@@ -1762,6 +2120,29 @@ if st.session_state.recorded and st.session_state.result:
         st.session_state.recorded = False
         st.session_state.reset_requested = True
         st.rerun()
+
+
+st.markdown("### 🥠 오늘의 행운쿠키")
+st.caption("감정과 관계없이 무작위로 문장을 뽑는 작은 놀이예요. 답장이나 마음 기록에는 저장되지 않아요.")
+with st.expander("🥠 행운쿠키 열어 보기", expanded=False):
+    if "fortune_draw" not in st.session_state:
+        st.session_state.fortune_draw = None
+    if st.button("🥠 랜덤 포춘쿠키 뽑기" if st.session_state.fortune_draw is None else "🎲 다른 쿠키 뽑기", key="fortune_draw_button", use_container_width=True):
+        previous = st.session_state.fortune_draw
+        # 같은 문장이 연속으로 나오지 않도록 합니다. 나머지는 동일한 확률로 뽑습니다.
+        candidates = [i for i in range(len(FORTUNE_ITEMS)) if i != previous]
+        st.session_state.fortune_draw = secrets.choice(candidates)
+    if st.session_state.fortune_draw is not None:
+        fortune = FORTUNE_ITEMS[st.session_state.fortune_draw]
+        st.markdown(
+            '<div class="fortune-slip">'
+            f'<div class="fortune-kind">{escape(fortune["kind"])}</div>'
+            f'<div class="fortune-title">{escape(fortune["message"])}</div>'
+            f'<div class="fortune-detail">{escape(fortune["detail"])}</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        st.caption("재미로 즐겨 주세요. 포춘쿠키의 내용이 오늘을 결정하는 것은 아니에요.")
 
 st.divider()
 st.caption("비밀 코드는 다른 친구에게 알려주지 마세요. 급한 일은 답장을 기다리지 말고 선생님께 직접 이야기하세요.")

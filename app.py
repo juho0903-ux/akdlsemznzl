@@ -205,38 +205,48 @@ def user_safe_error(exc):
 
 
 def get_auth_sheet():
-    """Initialize auth worksheet once; never overwrite already registered accounts."""
+    """Create initial student credentials only when the auth tab is genuinely empty.
+
+    Never overwrite an initialized sheet: registration hashes must remain stable.
+    """
     book = google_book()
     try:
         sheet = book.worksheet("학생인증")
     except gspread.WorksheetNotFound:
         sheet = book.add_worksheet(title="학생인증", rows=100, cols=5)
+
     if sheet.col_count < 5:
         sheet.resize(cols=5)
-
-    first_row = sheet.row_values(1)
-    if not first_row:
-        # A blank sheet is safe to initialize. Check it again immediately before writing.
-        # Keep all student secrets server-side; never render registration codes on this page.
+    header = sheet.row_values(1)
+    if not header:
         if sheet.get_all_values():
             raise RuntimeError("AUTH_NONEMPTY_NO_HEADER")
         rows = [AUTH_HEADERS] + [
             [str(i), name, secrets.token_urlsafe(9), "", ""]
             for i, name in enumerate(STUDENTS, 1)
         ]
+        # Use the spreadsheet-level Google Sheets Values API, avoiding version-
+        # dependent Worksheet.update() arguments entirely.
         try:
-            # Explicit named parameters avoid the different positional argument
-            # orders supported by gspread releases.
-            sheet.update(range_name=f"A1:E{len(rows)}", values=rows, raw=True)
+            write_sheet_cells(book, "학생인증", f"A1:E{len(rows)}", rows)
         except Exception as exc:
-            raise RuntimeError("AUTH_WRITE_FAILED") from exc
-        first_row = sheet.row_values(1)
-        if first_row[:5] != AUTH_HEADERS:
+            http = getattr(getattr(exc, "response", None), "status_code", None)
+            label = f"HTTP_{http}" if http else type(exc).__name__
+            raise RuntimeError(f"AUTH_WRITE_FAILED_{label}") from exc
+        try:
+            header = sheet.row_values(1)
+            student_row = sheet.row_values(2)
+        except Exception as exc:
+            raise RuntimeError(f"AUTH_READBACK_FAILED_{type(exc).__name__}") from exc
+        if header[:5] != AUTH_HEADERS or student_row[:2] != ["1", STUDENTS[0]]:
             raise RuntimeError("AUTH_VERIFY_FAILED")
-        sheet.freeze(rows=1)
-    elif first_row[:5] != AUTH_HEADERS:
+        try:
+            sheet.freeze(rows=1)
+        except Exception:
+            # Cosmetic failure should not prevent student authentication.
+            pass
+    elif header[:5] != AUTH_HEADERS:
         raise RuntimeError("AUTH_HEADER_MISMATCH")
-
     return sheet
 
 

@@ -1693,7 +1693,7 @@ for tab, (category, title) in zip(st.tabs(list(TABS.values())), TABS.items()):
                         st.rerun()
 
 st.write("**내가 고른 마음:** " + (" · ".join(st.session_state.selected) if st.session_state.selected else "아직 선택하지 않았어요"))
-st.markdown("### ✏️ 이 감정을 고른 이유")
+st.markdown("### ✏️ 이 감정을 고른 이유 (선택)")
 st.text_area(
     "오늘 이런 감정이 든 이유는 무엇인가요? (선택)",
     key="emotion_reason", height=110, max_chars=700,
@@ -1701,7 +1701,7 @@ st.text_area(
     disabled=st.session_state.recorded,
 )
 st.caption("적지 않아도 괜찮아요. 적은 내용은 담임 선생님만 확인하는 구글 스프레드시트 기록에 함께 저장돼요.")
-st.markdown("### 💌 담임 선생님께 전하고 싶은 말")
+st.markdown("### 💌 담임 선생님께 전하고 싶은 말 (선택)")
 st.write("평소 얼굴을 보고 말하기 어려웠던 이야기나, 오늘 남기고 싶은 말이 있다면 자유롭게 적어 주세요.")
 st.text_area("선생님께 보내는 말 (선택)", key="teacher_note", height=130, max_chars=1000, placeholder="꼭 적지 않아도 돼요. 선생님께 전하고 싶은 말이 있을 때 사용해 주세요.", disabled=st.session_state.recorded)
 st.caption("이 글은 담임 선생님이 확인합니다. 바로 읽거나 즉시 답장하는 채팅창은 아니에요. 급하거나 위험한 일이 있다면 선생님이나 믿을 수 있는 어른에게 직접 알려 주세요.")

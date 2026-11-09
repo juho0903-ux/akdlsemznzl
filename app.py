@@ -176,7 +176,7 @@ def get_sheet():
         sheet.resize(cols=len(HEADERS))
     existing = sheet.row_values(1)
     if not existing:
-        sheet.update(range_name="A1:K1", values=[HEADERS])
+        write_sheet_cells(book, "마음기록", "A1:K1", [HEADERS])
         sheet.freeze(rows=1)
     elif existing[:9] == HEADERS[:9]:
         for idx in (9, 10):
@@ -187,6 +187,21 @@ def get_sheet():
     else:
         raise RuntimeError("마음기록 시트의 기존 열 제목이 예상과 다릅니다. 기존 기록은 유지했습니다.")
     return sheet
+
+
+def write_sheet_cells(book, tab_name, start, rows):
+    """Google Sheets Values API; gspread Worksheet.update signature changes avoided."""
+    book.values_update(
+        f"'{tab_name}'!{start}",
+        params={"valueInputOption": "RAW"},
+        body={"values": rows},
+    )
+
+
+def user_safe_error(exc):
+    """No credentials, tokens, stack traces or user messages exposed."""
+    code = getattr(getattr(exc, "response", None), "status_code", None)
+    return f"{type(exc).__name__}" + (f" (HTTP {code})" if code else "")
 
 
 def get_auth_sheet():
@@ -204,7 +219,11 @@ def get_auth_sheet():
             [str(i), name, secrets.token_urlsafe(9), "", ""]
             for i, name in enumerate(STUDENTS, 1)
         ]
-        sheet.update(range_name=f"A1:E{len(rows)}", values=rows, value_input_option="RAW")
+        write_sheet_cells(book, "학생인증", f"A1:E{len(rows)}", rows)
+        # Verify contents: do not report ready while the sheet is still empty.
+        check = sheet.row_values(1)
+        if check[:5] != AUTH_HEADERS:
+            raise RuntimeError("학생인증_초기화_검증실패")
         sheet.freeze(rows=1)
     elif values[0][:5] != AUTH_HEADERS:
         raise RuntimeError("학생인증 시트의 제목이 맞지 않습니다.")
@@ -1537,8 +1556,9 @@ if st.session_state.verified_student != number:
     st.markdown("### 🔐 나만의 비밀 코드")
     try:
         auth_sheet, auth_row, record = auth_record(number)
-    except Exception:
-        st.error("본인 확인 준비가 되지 않았어요. 선생님께 알려 주세요.")
+    except Exception as exc:
+        st.error("학생인증 데이터 준비에 실패했습니다. 선생님께 알려 주세요.")
+        st.caption(f"점검 코드: 인증 초기화 / {user_safe_error(exc)}")
         st.stop()
     if is_rate_limited(number):
         st.warning("인증 시도가 많아 잠시 이용할 수 없어요. 15분 뒤 다시 시도하거나 선생님께 알려 주세요.")
@@ -1565,8 +1585,8 @@ if st.session_state.verified_student != number:
             else:
                 try:
                     salt = secrets.token_hex(16)
-                    auth_sheet.update(range_name=f"D{auth_row}:E{auth_row}", values=[[hash_code(new_code, salt), salt]], value_input_option="RAW")
-                    auth_sheet.update_acell(f"C{auth_row}", "")
+                    write_sheet_cells(google_book(), "학생인증", f"D{auth_row}:E{auth_row}", [[hash_code(new_code, salt), salt]])
+                    write_sheet_cells(google_book(), "학생인증", f"C{auth_row}", [[""]])
                     clear_failed_attempts(number)
                     st.session_state.verified_student = number
                     st.rerun()

@@ -30,12 +30,14 @@ STUDENTS = [
     "민이엘", "박주혁", "변나린", "성서준", "신서현", "양하늘", "오다윤",
     "유명산", "이동현", "이수아", "이시아", "이유준", "이채훈", "장예서",
     "정아현", "정찬호", "조예린", "최서우", "피시윤", "홍라희", "장예준",
+    "아미타",  # 29번: 발표회 체험용, 구글 시트 기록/학생 답장 조회 없음
 ]
 STUDENT_OPTIONS = [f"{i}. {name}" for i, name in enumerate(STUDENTS, 1)]
 TABS = {"positive": "☀️ 밝은 마음", "negative": "🌧️ 무거운 마음", "mixed": "🌈 여러 빛깔의 마음"}
 HEADERS = ["제출 시각(한국)", "번호", "이름", "감정 1", "감정 2", "담임에게 보내는 말", "마음쿠키 메시지", "추가 활동 유형", "추가 활동 내용", "감정을 고른 이유", "선생님 답장"]
 AUTH_HEADERS = ["번호", "이름", "개인 코드"]
 AUTH_COOKIE_NAME = "mindcookie_remembered_student_v1"
+DEMO_NUMBER = 29
 
 # 감정별 마음 메시지와 분리된 랜덤 포춘쿠키 (스프레드시트 기록 없음).
 FORTUNE_ITEMS = [{'kind': '속담', 'message': '시작이 반이다.', 'detail': '시작한 순간부터 이미 앞으로 나아가고 있다는 뜻이에요.', 'source': '우리말 속담'},
@@ -1895,20 +1897,23 @@ student_label = st.selectbox(
     ["번호와 이름 선택"] + STUDENT_OPTIONS,
     key="login_student_choice",
 )
-st.caption("감정과 남긴 말은 선생님 전용 구글 스프레드시트에 기록됩니다. 지난 메시지와 답장은 본인 인증 뒤에만 확인할 수 있어요.")
+st.caption("학생의 감정과 메시지는 선생님 전용 구글 시트에 기록돼요. 29번 아미타는 발표회용 체험 계정으로 저장되지 않아요.")
 
 if student_label == "번호와 이름 선택":
     st.info("먼저 번호와 이름을 선택해 주세요.")
     st.stop()
 
 number = STUDENT_OPTIONS.index(student_label) + 1
-if not configured:
+is_demo = (number == DEMO_NUMBER)
+if not configured and not is_demo:
     st.stop()
 
-# 다른 학생 이름을 클릭했다고 이전 학생의 인증이 넘어가지 않도록 합니다.
+# 데모 계정은 인증/학생 기록을 조회하지 않습니다. 실사용 학생은 기존 개인 코드로 인증합니다.
 if st.session_state.verified_student != number:
     st.session_state.verified_student = None
-if remembered_number == number:
+if is_demo:
+    st.session_state.verified_student = DEMO_NUMBER
+elif remembered_number == number:
     st.session_state.verified_student = number
 
 if st.session_state.verified_student != number:
@@ -1946,67 +1951,70 @@ if st.session_state.verified_student != number:
     st.caption("학교 공용 기기에서는 '기억하기'를 해제하세요. 다른 친구에게 코드를 알려주면 안 됩니다.")
     st.stop()
 
-st.success("🔓 본인 확인 완료")
-if st.button("이 기기에서 내 인증 해제하기", key="forget_this_device"):
-    cookie_controller.remove(AUTH_COOKIE_NAME)
-    st.session_state.verified_student = None
-    st.rerun()
-
-with st.expander("📚 나의 마음 기록 · 선생님 답장", expanded=True):
-    st.caption("이전에 보낸 마음과 선생님의 답장을 날짜별로 확인할 수 있어요. 기록은 덮어쓰지 않고 차곡차곡 쌓여요.")
-    if st.button("🔄 기록과 답장 새로고침", key="refresh_history"):
+if is_demo:
+    st.info("🎤 29번 아미타 · 발표회 체험 모드입니다. 감정 선택과 쿠키 뽑기를 자유롭게 시험할 수 있고, 입력한 내용은 구글 스프레드시트에 저장되지 않아요.")
+else:
+    st.success("🔓 본인 확인 완료")
+    if st.button("이 기기에서 내 인증 해제하기", key="forget_this_device"):
+        cookie_controller.remove(AUTH_COOKIE_NAME)
+        st.session_state.verified_student = None
         st.rerun()
-    history_error = False
-    try:
-        history = student_history(number)
-    except Exception:
-        history_error = True
-        history = []
-        st.warning("기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
-    if history:
-        pending_count = sum(not entry["reply"].strip() for entry in history)
-        completed_count = len(history) - pending_count
-        st.caption(f"전체 {len(history)}건 · 답장 완료 {completed_count}건 · 답장 대기 {pending_count}건")
-        date_options = list(dict.fromkeys(entry["date"] for entry in history))
-        h_col1, h_col2 = st.columns(2)
-        with h_col1:
-            selected_date = st.selectbox("날짜별 보기", ["전체 날짜"] + date_options, key="history_date")
-        with h_col2:
-            selected_status = st.selectbox("답장 상태", ["전체", "답장 완료", "답장 대기"], key="history_status")
-        filtered_history = [entry for entry in history
-                            if (selected_date == "전체 날짜" or entry["date"] == selected_date)
-                            and (selected_status == "전체" or (bool(entry["reply"].strip()) == (selected_status == "답장 완료")))]
-        if not filtered_history:
-            st.info("선택한 조건에 해당하는 기록이 없어요.")
-        else:
-            # Limit initial render; every matching record remains accessible using the count selector.
-            show_limit = st.selectbox("표시할 기록", [10, 30, 100, "전체"], key="history_limit")
-            visible = filtered_history if show_limit == "전체" else filtered_history[:show_limit]
-            current_day = None
-            for index, entry in enumerate(visible):
-                if entry["date"] != current_day:
-                    current_day = entry["date"]
-                    st.markdown(f"#### 📅 {current_day}")
-                status_text = "💌 답장 완료" if entry["reply"].strip() else "⏳ 답장 대기"
-                with st.container(border=True):
-                    st.caption(f"{entry['timestamp']} · {status_text}")
-                    if entry["emotions"]:
-                        st.write("**내가 고른 감정:** " + " · ".join(entry["emotions"]))
-                    if entry["reason"].strip():
-                        st.write("**감정을 고른 이유:** " + entry["reason"])
-                    if entry["note"].strip():
-                        st.write("**선생님께 보낸 말:** " + entry["note"])
-                    else:
-                        st.caption("선생님께 남긴 메시지가 없는 날이에요.")
-                    if entry["reply"].strip():
-                        st.info("💌 선생님의 답장\n\n" + entry["reply"])
-                    else:
-                        st.caption("아직 선생님의 답장이 도착하지 않았어요.")
-            if len(visible) < len(filtered_history):
-                st.caption(f"총 {len(filtered_history)}건 중 {len(visible)}건만 표시 중입니다. '표시할 기록'을 바꾸면 더 볼 수 있어요.")
-    elif not history_error:
-        st.caption("아직 저장된 마음 기록이 없어요. 첫 번째 마음쿠키를 열어 보세요.")
 
+if not is_demo:
+    with st.expander("📚 나의 마음 기록 · 선생님 답장", expanded=True):
+        st.caption("이전에 보낸 마음과 선생님의 답장을 날짜별로 확인할 수 있어요. 기록은 덮어쓰지 않고 차곡차곡 쌓여요.")
+        if st.button("🔄 기록과 답장 새로고침", key="refresh_history"):
+            st.rerun()
+        history_error = False
+        try:
+            history = student_history(number)
+        except Exception:
+            history_error = True
+            history = []
+            st.warning("기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")
+        if history:
+            pending_count = sum(not entry["reply"].strip() for entry in history)
+            completed_count = len(history) - pending_count
+            st.caption(f"전체 {len(history)}건 · 답장 완료 {completed_count}건 · 답장 대기 {pending_count}건")
+            date_options = list(dict.fromkeys(entry["date"] for entry in history))
+            h_col1, h_col2 = st.columns(2)
+            with h_col1:
+                selected_date = st.selectbox("날짜별 보기", ["전체 날짜"] + date_options, key="history_date")
+            with h_col2:
+                selected_status = st.selectbox("답장 상태", ["전체", "답장 완료", "답장 대기"], key="history_status")
+            filtered_history = [entry for entry in history
+                                if (selected_date == "전체 날짜" or entry["date"] == selected_date)
+                                and (selected_status == "전체" or (bool(entry["reply"].strip()) == (selected_status == "답장 완료")))]
+            if not filtered_history:
+                st.info("선택한 조건에 해당하는 기록이 없어요.")
+            else:
+                # Limit initial render; every matching record remains accessible using the count selector.
+                show_limit = st.selectbox("표시할 기록", [10, 30, 100, "전체"], key="history_limit")
+                visible = filtered_history if show_limit == "전체" else filtered_history[:show_limit]
+                current_day = None
+                for index, entry in enumerate(visible):
+                    if entry["date"] != current_day:
+                        current_day = entry["date"]
+                        st.markdown(f"#### 📅 {current_day}")
+                    status_text = "💌 답장 완료" if entry["reply"].strip() else "⏳ 답장 대기"
+                    with st.container(border=True):
+                        st.caption(f"{entry['timestamp']} · {status_text}")
+                        if entry["emotions"]:
+                            st.write("**내가 고른 감정:** " + " · ".join(entry["emotions"]))
+                        if entry["reason"].strip():
+                            st.write("**감정을 고른 이유:** " + entry["reason"])
+                        if entry["note"].strip():
+                            st.write("**선생님께 보낸 말:** " + entry["note"])
+                        else:
+                            st.caption("선생님께 남긴 메시지가 없는 날이에요.")
+                        if entry["reply"].strip():
+                            st.info("💌 선생님의 답장\n\n" + entry["reply"])
+                        else:
+                            st.caption("아직 선생님의 답장이 도착하지 않았어요.")
+                if len(visible) < len(filtered_history):
+                    st.caption(f"총 {len(filtered_history)}건 중 {len(visible)}건만 표시 중입니다. '표시할 기록'을 바꾸면 더 볼 수 있어요.")
+        elif not history_error:
+            st.caption("아직 저장된 마음 기록이 없어요. 첫 번째 마음쿠키를 열어 보세요.")
 if st.session_state.pop("reset_requested", False):
     st.session_state.selected = []
     st.session_state.result = None
@@ -2028,6 +2036,7 @@ if st.session_state.student_id != student_label:
     st.session_state.selected = []
     st.session_state.result = None
     st.session_state.recorded = False
+    st.session_state.fortune_draw = None  # 이전 학생의 행운쿠키 결과도 지움
     st.session_state.student_id = student_label
     st.session_state["teacher_note"] = ""
     st.session_state["emotion_reason"] = ""
@@ -2070,24 +2079,28 @@ st.text_area(
     placeholder="예: 친구가 먼저 인사해 줘서 기뻤어요. / 발표를 앞두고 있어서 긴장돼요.",
     disabled=st.session_state.recorded,
 )
-st.caption("적지 않아도 괜찮아요. 적은 내용은 담임 선생님만 확인하는 구글 스프레드시트 기록에 함께 저장돼요.")
+st.caption("체험 계정은 저장되지 않아요." if is_demo else "적지 않아도 괜찮아요. 적은 내용은 담임 선생님만 확인하는 구글 스프레드시트 기록에 함께 저장돼요.")
 st.markdown("### 💌 담임 선생님께 전하고 싶은 말 (선택)")
 st.write("평소 얼굴을 보고 말하기 어려웠던 이야기나, 오늘 남기고 싶은 말이 있다면 자유롭게 적어 주세요.")
 st.text_area("선생님께 보내는 말 (선택)", key="teacher_note", height=130, max_chars=1000, placeholder="꼭 적지 않아도 돼요. 선생님께 전하고 싶은 말이 있을 때 사용해 주세요.", disabled=st.session_state.recorded)
-st.caption("이 글은 담임 선생님이 확인합니다. 바로 읽거나 즉시 답장하는 채팅창은 아니에요. 급하거나 위험한 일이 있다면 선생님이나 믿을 수 있는 어른에게 직접 알려 주세요.")
+st.caption("29번 아미타 체험에서는 선생님께 보내는 말도 저장되지 않아요." if is_demo else "이 글은 담임 선생님이 확인합니다. 바로 읽거나 즉시 답장하는 채팅창은 아니에요. 급하거나 위험한 일이 있다면 선생님이나 믿을 수 있는 어른에게 직접 알려 주세요.")
 
 if not st.session_state.recorded:
-    if st.button("🍪 마음쿠키 열기 · 오늘의 마음 제출", type="primary", use_container_width=True,
-                 disabled=(student_label == "번호와 이름 선택" or not st.session_state.selected or not configured)):
+    if st.button("🍪 마음쿠키 체험하기" if is_demo else "🍪 마음쿠키 열기 · 오늘의 마음 제출", type="primary", use_container_width=True,
+                 disabled=(student_label == "번호와 이름 선택" or not st.session_state.selected or (not configured and not is_demo))):
         result = make_message(st.session_state.selected)
         number = STUDENT_OPTIONS.index(student_label) + 1
         name = STUDENTS[number - 1]
-        # 먼저 기록 성공을 확인합니다. 실패하면 애니메이션이나 완료 메시지를 보이지 않습니다.
-        try:
-            save_submission(number, name, list(st.session_state.selected), st.session_state.teacher_note, st.session_state.emotion_reason, result)
-        except Exception:
-            st.error("지금은 기록을 저장하지 못했어요. 쿠키를 다시 눌러 주세요. 계속 안 되면 선생님께 알려 주세요.")
-        else:
+        # 발표회 체험 계정은 시트에 절대 저장하지 않습니다.
+        # 일반 학생은 기존처럼 저장이 성공했을 때만 결과를 보여 줍니다.
+        saved_ok = is_demo
+        if not is_demo:
+            try:
+                save_submission(number, name, list(st.session_state.selected), st.session_state.teacher_note, st.session_state.emotion_reason, result)
+                saved_ok = True
+            except Exception:
+                st.error("지금은 기록을 저장하지 못했어요. 쿠키를 다시 눌러 주세요. 계속 안 되면 선생님께 알려 주세요.")
+        if saved_ok:
             st.session_state.recorded = True
             st.session_state.result = result
             cookie_image = base64.b64encode((ROOT / "fortune_cookie.png").read_bytes()).decode("ascii")
@@ -2099,7 +2112,7 @@ if not st.session_state.recorded:
 
 if st.session_state.recorded and st.session_state.result:
     main, extra_type, extra = st.session_state.result
-    st.success("오늘의 마음이 선생님께 전달되었어요. 🍀")
+    st.success("🍀 마음쿠키 체험 완료! 입력 내용은 저장되지 않았어요." if is_demo else "오늘의 마음이 선생님께 전달되었어요. 🍀")
     st.markdown("### 🍪 오늘의 마음 메시지")
     feelings = " · ".join(escape(name) for name in st.session_state.selected)
     st.markdown(f'<div class="selected-feelings"><strong>💗 내가 고른 감정</strong><div>{feelings}</div></div>', unsafe_allow_html=True)
@@ -2113,36 +2126,37 @@ if st.session_state.recorded and st.session_state.result:
     if st.button("🍪 같은 마음으로 다른 메시지 보기", use_container_width=True):
         st.session_state.result = make_message(st.session_state.selected)
         st.rerun()
-    st.caption("'다른 메시지 보기'는 새 기록을 추가하지 않아요.")
+    st.caption("'다른 메시지 보기'는 새 기록을 추가하지 않아요. 아래에서 보너스 행운쿠키를 뽑을 수 있어요.")
     if st.button("새로 시작하기", use_container_width=True):
         st.session_state.selected = []
         st.session_state.result = None
         st.session_state.recorded = False
+        st.session_state.fortune_draw = None
         st.session_state.reset_requested = True
         st.rerun()
 
 
-st.markdown("### 🥠 오늘의 행운쿠키")
-st.caption("감정과 관계없이 무작위로 문장을 뽑는 작은 놀이예요. 답장이나 마음 기록에는 저장되지 않아요.")
-with st.expander("🥠 행운쿠키 열어 보기", expanded=False):
-    if "fortune_draw" not in st.session_state:
-        st.session_state.fortune_draw = None
-    if st.button("🥠 랜덤 포춘쿠키 뽑기" if st.session_state.fortune_draw is None else "🎲 다른 쿠키 뽑기", key="fortune_draw_button", use_container_width=True):
-        previous = st.session_state.fortune_draw
-        # 같은 문장이 연속으로 나오지 않도록 합니다. 나머지는 동일한 확률로 뽑습니다.
-        candidates = [i for i in range(len(FORTUNE_ITEMS)) if i != previous]
-        st.session_state.fortune_draw = secrets.choice(candidates)
-    if st.session_state.fortune_draw is not None:
-        fortune = FORTUNE_ITEMS[st.session_state.fortune_draw]
-        st.markdown(
-            '<div class="fortune-slip">'
-            f'<div class="fortune-kind">{escape(fortune["kind"])}</div>'
-            f'<div class="fortune-title">{escape(fortune["message"])}</div>'
-            f'<div class="fortune-detail">{escape(fortune["detail"])}</div>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
-        st.caption("재미로 즐겨 주세요. 포춘쿠키의 내용이 오늘을 결정하는 것은 아니에요.")
-
+if st.session_state.recorded and st.session_state.result:
+    st.markdown("### 🥠 오늘의 행운쿠키")
+    st.caption("마음쿠키를 연 다음 즐길 수 있는 보너스 뽑기예요. 감정과 관계없이 무작위로 문장이 나와요.")
+    with st.expander("🥠 행운쿠키 열어 보기", expanded=False):
+        if "fortune_draw" not in st.session_state:
+            st.session_state.fortune_draw = None
+        if st.button("🥠 랜덤 포춘쿠키 뽑기" if st.session_state.fortune_draw is None else "🎲 다른 쿠키 뽑기", key="fortune_draw_button", use_container_width=True):
+            previous = st.session_state.fortune_draw
+            # 같은 문장이 연속으로 나오지 않도록 합니다. 나머지는 동일한 확률로 뽑습니다.
+            candidates = [i for i in range(len(FORTUNE_ITEMS)) if i != previous]
+            st.session_state.fortune_draw = secrets.choice(candidates)
+        if st.session_state.fortune_draw is not None:
+            fortune = FORTUNE_ITEMS[st.session_state.fortune_draw]
+            st.markdown(
+                '<div class="fortune-slip">'
+                f'<div class="fortune-kind">{escape(fortune["kind"])}</div>'
+                f'<div class="fortune-title">{escape(fortune["message"])}</div>'
+                f'<div class="fortune-detail">{escape(fortune["detail"])}</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            st.caption("재미로 즐겨 주세요. 포춘쿠키의 내용이 오늘을 결정하는 것은 아니에요.")
 st.divider()
 st.caption("비밀 코드는 다른 친구에게 알려주지 마세요. 급한 일은 답장을 기다리지 말고 선생님께 직접 이야기하세요.")

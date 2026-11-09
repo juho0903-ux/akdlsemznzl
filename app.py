@@ -8,7 +8,7 @@ import secrets
 import threading
 import time as clock
 from difflib import SequenceMatcher
-from datetime import datetime
+from datetime import datetime, timedelta
 from html import escape
 import json
 from pathlib import Path
@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 import gspread
 from google.oauth2.service_account import Credentials
 import streamlit as st
+from streamlit_cookies_controller import CookieController
 
 st.set_page_config(page_title="오늘의 마음쿠키 🍪", page_icon="🍪", layout="centered")
 ROOT = Path(__file__).resolve().parent
@@ -33,7 +34,8 @@ STUDENTS = [
 STUDENT_OPTIONS = [f"{i}. {name}" for i, name in enumerate(STUDENTS, 1)]
 TABS = {"positive": "☀️ 밝은 마음", "negative": "🌧️ 무거운 마음", "mixed": "🌈 여러 빛깔의 마음"}
 HEADERS = ["제출 시각(한국)", "번호", "이름", "감정 1", "감정 2", "담임에게 보내는 말", "마음쿠키 메시지", "추가 활동 유형", "추가 활동 내용", "감정을 고른 이유", "선생님 답장"]
-AUTH_HEADERS = ["번호", "이름", "최초 등록 코드(교사 배부)", "비밀 코드 해시", "솔트"]
+AUTH_HEADERS = ["번호", "이름", "개인 코드"]
+AUTH_COOKIE_NAME = "mindcookie_remembered_student_v1"
 
 # 기존 감정 데이터와 메시지 생성 방식을 유지합니다.
 POSITIVE_CLOSINGS = [
@@ -205,66 +207,55 @@ def user_safe_error(exc):
 
 
 def get_auth_sheet():
-    """Create initial student credentials only when the auth tab is genuinely empty.
-
-    Never overwrite an initialized sheet: registration hashes must remain stable.
-    """
-    book = google_book()
+    """교사가 수동 작성한 학생인증 시트를 읽기만 합니다. 자동 생성·수정 금지."""
     try:
-        sheet = book.worksheet("학생인증")
-    except gspread.WorksheetNotFound:
-        sheet = book.add_worksheet(title="학생인증", rows=100, cols=5)
-
-    if sheet.col_count < 5:
-        sheet.resize(cols=5)
-    header = sheet.row_values(1)
-    if not header:
-        if sheet.get_all_values():
-            raise RuntimeError("AUTH_NONEMPTY_NO_HEADER")
-        rows = [AUTH_HEADERS] + [
-            [str(i), name, secrets.token_urlsafe(9), "", ""]
-            for i, name in enumerate(STUDENTS, 1)
-        ]
-        # Use the spreadsheet-level Google Sheets Values API, avoiding version-
-        # dependent Worksheet.update() arguments entirely.
-        try:
-            write_sheet_cells(book, "학생인증", f"A1:E{len(rows)}", rows)
-        except Exception as exc:
-            http = getattr(getattr(exc, "response", None), "status_code", None)
-            label = f"HTTP_{http}" if http else type(exc).__name__
-            raise RuntimeError(f"AUTH_WRITE_FAILED_{label}") from exc
-        try:
-            header = sheet.row_values(1)
-            student_row = sheet.row_values(2)
-        except Exception as exc:
-            raise RuntimeError(f"AUTH_READBACK_FAILED_{type(exc).__name__}") from exc
-        if header[:5] != AUTH_HEADERS or student_row[:2] != ["1", STUDENTS[0]]:
-            raise RuntimeError("AUTH_VERIFY_FAILED")
-        try:
-            sheet.freeze(rows=1)
-        except Exception:
-            # Cosmetic failure should not prevent student authentication.
-            pass
-    elif header[:5] != AUTH_HEADERS:
-        raise RuntimeError("AUTH_HEADER_MISMATCH")
-    return sheet
+        return google_book().worksheet("학생인증")
+    except gspread.WorksheetNotFound as exc:
+        raise RuntimeError("학생인증 시트를 찾을 수 없습니다.") from exc
 
 
 def auth_record(number):
+    """A: 번호, B: 이름, C: 개인 코드. 단 한 번도 쓰기 API를 호출하지 않습니다."""
     sheet = get_auth_sheet()
-    row_idx = number + 1
-    values = sheet.row_values(row_idx)
-    if len(values) < 2 or str(values[0]) != str(number) or values[1] != STUDENTS[number - 1]:
-        raise RuntimeError("학생인증 명단을 확인해 주세요.")
-    return sheet, row_idx, values + [""] * (5 - len(values))
+    row = sheet.row_values(number + 1)
+    if len(row) < 3:
+        raise RuntimeError(f"학생인증 시트의 {number + 1}행 A~C열을 확인해 주세요.")
+    actual_no, actual_name, code = (x.strip() for x in row[:3])
+    if actual_no != str(number) or actual_name != STUDENTS[number - 1]:
+        raise RuntimeError(f"학생인증 {number + 1}행의 번호·이름이 사이트 명단과 다릅니다.")
+    if not code or len(code) < 6:
+        raise RuntimeError(f"학생인증 {number + 1}행 C열 개인 코드를 6자 이상 입력해 주세요.")
+    return code
 
 
-def hash_code(code, salt):
-    # 개인 코드는 평문으로 보관하지 않습니다.
-    return hashlib.pbkdf2_hmac("sha256", code.encode("utf-8"), bytes.fromhex(salt), 310000).hex()
+def signing_secret():
+    """서비스 계정의 서버 전용 비밀키로 서명. 별도 설정값 불필요."""
+    private_key = st.secrets["gcp_service_account"]["private_key"]
+    return hashlib.sha256((private_key + "mindcookie-cookie-signing-v1").encode()).digest()
 
 
-@st.cache_resource
+def signed_remember_token(number, student_code):
+    """쿠키에는 학생 코드 원문이 담기지 않습니다. 코드 변경 시 기존 쿠키도 무효화."""
+    msg = f"{number}:{student_code}".encode("utf-8")
+    signature = hmac.new(signing_secret(), msg, hashlib.sha256).hexdigest()
+    return f"{number}.{signature}"
+
+
+def authenticated_cookie_number(cookie_value):
+    if not isinstance(cookie_value, str) or "." not in cookie_value:
+        return None
+    no_str, signature = cookie_value.split(".", 1)
+    if not no_str.isdecimal() or len(signature) != 64:
+        return None
+    no = int(no_str)
+    if not 1 <= no <= len(STUDENTS):
+        return None
+    try:
+        expected = signed_remember_token(no, auth_record(no))
+    except Exception:
+        return None
+    return no if hmac.compare_digest(cookie_value, expected) else None
+
 
 def login_limits():
     return {"lock": threading.Lock(), "events": {}}
@@ -1556,13 +1547,22 @@ configured = sheet_is_configured()
 if not configured:
     st.warning("선생님이 구글 스프레드시트 연결을 마치면 사용할 수 있어요. 아직 기록이 저장되지 않기 때문에 제출 기능을 잠시 닫아 두었어요.")
 
-student_label = st.selectbox("📋 번호와 이름을 선택해 주세요", ["번호와 이름 선택"] + STUDENT_OPTIONS, index=0)
-st.caption("감정과 남긴 말은 선생님 전용 구글 스프레드시트에 기록됩니다. 답장은 본인 인증 뒤에만 확인할 수 있어요.")
+# 브라우저 쿠키는 같은 기기·브라우저에서만 유지됩니다.
+# 개인정보가 있는 답장은 서명된 쿠키 또는 학생 코드를 검증한 후에만 보여 줍니다.
+cookie_controller = CookieController(key="mindcookie_browser_cookie_controller")
+remembered_number = authenticated_cookie_number(cookie_controller.get(AUTH_COOKIE_NAME)) if configured else None
 
 if "verified_student" not in st.session_state:
     st.session_state.verified_student = None
-if st.session_state.verified_student is not None and student_label != STUDENT_OPTIONS[st.session_state.verified_student - 1]:
-    st.session_state.verified_student = None
+if "login_student_choice" not in st.session_state and remembered_number:
+    st.session_state.login_student_choice = STUDENT_OPTIONS[remembered_number - 1]
+
+student_label = st.selectbox(
+    "📋 번호와 이름을 선택해 주세요",
+    ["번호와 이름 선택"] + STUDENT_OPTIONS,
+    key="login_student_choice",
+)
+st.caption("감정과 남긴 말은 선생님 전용 구글 스프레드시트에 기록됩니다. 답장은 본인 인증 뒤에만 확인할 수 있어요.")
 
 if student_label == "번호와 이름 선택":
     st.info("먼저 번호와 이름을 선택해 주세요.")
@@ -1572,63 +1572,53 @@ number = STUDENT_OPTIONS.index(student_label) + 1
 if not configured:
     st.stop()
 
+# 다른 학생 이름을 클릭했다고 이전 학생의 인증이 넘어가지 않도록 합니다.
+if st.session_state.verified_student != number:
+    st.session_state.verified_student = None
+if remembered_number == number:
+    st.session_state.verified_student = number
+
 if st.session_state.verified_student != number:
     st.markdown("### 🔐 나만의 비밀 코드")
-    try:
-        auth_sheet, auth_row, record = auth_record(number)
-    except Exception as exc:
-        st.error("학생인증 데이터 준비에 실패했습니다. 선생님께 알려 주세요.")
-        detail = str(exc) if isinstance(exc, RuntimeError) and str(exc).startswith("AUTH_") else user_safe_error(exc)
-        st.caption(f"점검 코드: 인증 초기화 / {detail}")
-        st.stop()
+    st.caption("선생님이 알려 준 개인 코드를 처음 한 번 입력하면, 이 기기에서는 다음에도 자동으로 인증됩니다.")
     if is_rate_limited(number):
-        st.warning("인증 시도가 많아 잠시 이용할 수 없어요. 15분 뒤 다시 시도하거나 선생님께 알려 주세요.")
+        st.warning("입력 오류가 많아 잠시 인증을 제한합니다. 약 15분 뒤 다시 시도해 주세요.")
         st.stop()
-    if not record[3]:
-        st.info("처음 방문했나요? 선생님이 알려 준 1회용 등록 코드로 나만의 비밀 코드를 만들어요.")
-        with st.form("create_account"):
-            setup_code = st.text_input("선생님이 나눠 준 등록 코드", type="password")
-            new_code = st.text_input("앞으로 사용할 비밀 코드 (영문+숫자, 8자 이상)", type="password")
-            new_code_again = st.text_input("비밀 코드 다시 입력", type="password")
-            submitted = st.form_submit_button("내 비밀 코드 등록하기", use_container_width=True)
-        if submitted:
-            # 재확인해 다른 접속에서 먼저 등록한 계정의 덮어쓰기를 방지합니다.
-            auth_sheet, auth_row, record = auth_record(number)
-            if record[3]:
-                st.error("이미 등록된 계정입니다. 화면을 새로고침해 로그인해 주세요.")
-            elif not hmac.compare_digest(setup_code, record[2]):
-                note_failed_attempt(number)
-                st.error("등록 코드가 맞지 않아요. 선생님께 받은 코드를 확인하세요.")
-            elif not (8 <= len(new_code) <= 32 and any(c.isalpha() for c in new_code) and any(c.isdigit() for c in new_code)):
-                st.error("영문과 숫자가 포함된 8~32자리 코드를 사용해 주세요.")
-            elif new_code != new_code_again:
-                st.error("두 비밀 코드가 서로 달라요.")
-            else:
-                try:
-                    salt = secrets.token_hex(16)
-                    write_sheet_cells(google_book(), "학생인증", f"D{auth_row}:E{auth_row}", [[hash_code(new_code, salt), salt]])
-                    write_sheet_cells(google_book(), "학생인증", f"C{auth_row}", [[""]])
-                    clear_failed_attempts(number)
-                    st.session_state.verified_student = number
-                    st.rerun()
-                except Exception:
-                    st.error("비밀 코드를 저장하지 못했어요. 선생님께 알려 주세요.")
-    else:
-        with st.form("login_account"):
-            code = st.text_input("나만의 비밀 코드", type="password")
-            login = st.form_submit_button("내 마음쿠키 열기 · 답장 확인", use_container_width=True)
-        if login:
-            if record[4] and hmac.compare_digest(hash_code(code, record[4]), record[3]):
+    with st.form("login_account"):
+        code = st.text_input("선생님이 알려 준 개인 코드", type="password")
+        remember = st.checkbox("이 기기에서 코드 기억하기", value=True)
+        login = st.form_submit_button("내 마음쿠키 열기 · 답장 확인", use_container_width=True)
+    if login:
+        try:
+            correct_code = auth_record(number)
+        except Exception as exc:
+            st.error("학생인증 시트의 번호·이름·개인 코드를 확인해 주세요.")
+            st.caption(f"선생님 점검 안내: {str(exc)}")
+        else:
+            if hmac.compare_digest(code.strip(), correct_code):
                 clear_failed_attempts(number)
                 st.session_state.verified_student = number
+                if remember:
+                    cookie_controller.set(
+                        AUTH_COOKIE_NAME,
+                        signed_remember_token(number, correct_code),
+                        expires=datetime.now() + timedelta(days=180),
+                        same_site="strict",
+                        secure=True,
+                    )
                 st.rerun()
             else:
                 note_failed_attempt(number)
-                st.error("비밀 코드가 일치하지 않아요.")
-    st.caption("코드를 잊었다면 선생님께 직접 초기화를 요청하세요. 다른 친구의 코드를 사용하면 안 돼요.")
+                st.error("개인 코드가 일치하지 않아요. 선생님께 받은 코드를 확인해 주세요.")
+    st.caption("학교 공용 기기에서는 '기억하기'를 해제하세요. 다른 친구에게 코드를 알려주면 안 됩니다.")
     st.stop()
 
 st.success("🔓 본인 확인 완료")
+if st.button("이 기기에서 내 인증 해제하기", key="forget_this_device"):
+    cookie_controller.remove(AUTH_COOKIE_NAME)
+    st.session_state.verified_student = None
+    st.rerun()
+
 with st.expander("💌 선생님의 답장 확인", expanded=True):
     if st.button("답장 새로고침", key="refresh_replies"):
         st.rerun()

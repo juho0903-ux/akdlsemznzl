@@ -2147,6 +2147,18 @@ if st.session_state.recorded and st.session_state.result:
             # 같은 문장이 연속으로 나오지 않도록 합니다. 나머지는 동일한 확률로 뽑습니다.
             candidates = [i for i in range(len(FORTUNE_ITEMS)) if i != previous]
             st.session_state.fortune_draw = secrets.choice(candidates)
+            # 행운쿠키에도 기존 마음쿠키와 동일한 3초 애니메이션 적용
+            cookie_image = base64.b64encode((ROOT / "fortune_cookie.png").read_bytes()).decode("ascii")
+            fortune_stage = st.empty()
+            fortune_stage.markdown(
+                f'<div class="cookie-stage"><div class="cookie-note">🍀</div>'
+                f'<div class="cookie-half cookie-left" style="background-image:url(data:image/png;base64,{cookie_image})"></div>'
+                f'<div class="cookie-half cookie-right" style="background-image:url(data:image/png;base64,{cookie_image})"></div>'
+                '</div><div style="text-align:center;color:var(--mc-fg)">🥠 행운쿠키를 여는 중...</div>',
+                unsafe_allow_html=True,
+            )
+            time.sleep(3.05)
+            fortune_stage.empty()
         if st.session_state.fortune_draw is not None:
             fortune = FORTUNE_ITEMS[st.session_state.fortune_draw]
             st.markdown(

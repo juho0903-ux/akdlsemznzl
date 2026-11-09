@@ -1451,95 +1451,107 @@ def search_emotions(query):
 
 st.markdown("""
 <style>
-.stApp { background: linear-gradient(155deg, #fff9f1 0%, #fff6f0 70%, #fffdfa 100%); }
-.block-container {max-width: 840px; padding-top:1.6rem; padding-bottom:4rem;}
-h1,h2,h3 {color:#654435;}
+/* 색은 Streamlit 테마의 CSS 변수에 연결합니다. 사용자가 ⋮에서 Light/Dark를
+   선택하더라도 사이트의 카드·글씨·입력창이 함께 전환됩니다. */
+.stApp {
+  --mc-bg: var(--background-color, #FFF8F1);
+  --mc-fg: var(--text-color, #342923);
+  --mc-surface: var(--secondary-background-color, #F4EBE3);
+  --mc-edge: color-mix(in srgb, var(--mc-fg) 25%, var(--mc-bg));
+  --mc-muted: color-mix(in srgb, var(--mc-fg) 76%, var(--mc-bg));
+  --mc-accent: #AD4054;
+  color: var(--mc-fg) !important;
+  background: var(--mc-bg) !important;
+}
+/* 테마 변수가 제공되지 않는 환경에서도 OS 다크 모드 지원 */
+@media (prefers-color-scheme: dark) {
+  .stApp {
+    --mc-bg: var(--background-color, #211D1B);
+    --mc-fg: var(--text-color, #F8EEE7);
+    --mc-surface: var(--secondary-background-color, #342D29);
+    --mc-accent: #C86372;
+  }
+}
+/* Streamlit이 지정한 테마 배경·글씨 변수를 우선 사용 */
+[data-testid="stAppViewContainer"], [data-testid="stMain"] {
+  background: var(--background-color, transparent) !important;
+  color: var(--text-color, inherit) !important;
+}
+.block-container {max-width:840px;padding-top:1.6rem;padding-bottom:4rem;}
+.stApp h1,.stApp h2,.stApp h3,.stApp p,.stApp label {color:var(--mc-fg);}
+.stApp [data-testid="stCaptionContainer"] {color:var(--mc-muted) !important;}
+.stApp [data-testid="stCaptionContainer"] * {color:inherit !important;}
 [data-testid="stButton"] button {border-radius:15px;min-height:49px;white-space:normal;}
-.cookie-message {background:white;border:1px solid #f1d8bd;border-radius:22px;padding:24px;box-shadow:0 7px 20px #9a72551a;}
-.cookie-message p {font-size:1.12rem;line-height:1.8;color:#573d2e;}
-.selected-feelings {background:#fff8ec;border:1px solid #f1dcc5;border-radius:17px;padding:14px 19px;margin:0 0 14px;color:#744b3c;}
+.cookie-message {
+  background:color-mix(in srgb,var(--mc-bg) 86%,var(--mc-surface));
+  border:1px solid var(--mc-edge);border-radius:22px;padding:24px;
+  box-shadow:0 7px 20px color-mix(in srgb,var(--mc-fg) 9%,transparent);
+}
+.cookie-message p {font-size:1.12rem;line-height:1.8;color:var(--mc-fg) !important;}
+.selected-feelings {
+  background:color-mix(in srgb,var(--mc-bg) 55%,var(--mc-surface));
+  border:1px solid var(--mc-edge);border-radius:17px;
+  padding:14px 19px;margin:0 0 14px;color:var(--mc-fg);
+}
+.selected-feelings strong,.selected-feelings div {color:var(--mc-fg) !important;}
 .selected-feelings div {font-size:1.1rem;margin-top:5px;font-weight:600;}
 .cookie-stage {height:230px;position:relative;max-width:340px;margin:0 auto 6px;overflow:hidden;}
-.cookie-half {position:absolute;left:50%;top:0; width:205px;height:205px;transform:translateX(-50%);background-size:205px 205px;background-repeat:no-repeat;}
-.cookie-left {clip-path:inset(0 50% 0 0); animation:splitLeft 3s ease-in-out forwards;}
+.cookie-half {position:absolute;left:50%;top:0;width:205px;height:205px;transform:translateX(-50%);background-size:205px 205px;background-repeat:no-repeat;}
+.cookie-left {clip-path:inset(0 50% 0 0);animation:splitLeft 3s ease-in-out forwards;}
 .cookie-right {clip-path:inset(0 0 0 50%);animation:splitRight 3s ease-in-out forwards;}
-.cookie-note {position:absolute;z-index:-1;left:50%;top:88px;transform:translateX(-50%);background:#fff4d9;box-shadow:0 2px 12px #b08c6b55;border-radius:5px;padding:18px 25px;font-size:24px;animation:paper 3s ease forwards;}
+.cookie-note {position:absolute;z-index:-1;left:50%;top:88px;transform:translateX(-50%);background:#FFF4D9;color:#342923;box-shadow:0 2px 12px #b08c6b55;border-radius:5px;padding:18px 25px;font-size:24px;animation:paper 3s ease forwards;}
 @keyframes splitLeft {0%,28%{transform:translateX(-50%) rotate(0)} 65%,100%{transform:translateX(-81%) rotate(-12deg)}}
 @keyframes splitRight {0%,28%{transform:translateX(-50%) rotate(0)} 65%,100%{transform:translateX(-19%) rotate(12deg)}}
 @keyframes paper {0%,35%{opacity:0;transform:translate(-50%,12px) scale(.35)} 72%,100%{opacity:1;transform:translate(-50%,0) scale(1)}}
-
-/* 감정 카드: 작은 화면에서도 3열을 유지합니다.
-   Streamlit은 모바일에서 st.columns를 기본적으로 세로로 쌓기 때문에,
-   감정 탭 안의 행에만 가로 배치를 다시 적용합니다. */
-@media (max-width: 640px) {
-  .block-container {
-    padding-left: 0.8rem !important;
-    padding-right: 0.8rem !important;
-  }
-  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    align-items: stretch !important;
-    gap: 0.4rem !important;
-  }
-  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
-  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] > [data-testid="column"] {
-    flex: 1 1 0% !important;
-    width: 0 !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-  [data-testid="stTabs"] [data-testid="stColumn"] [data-testid="stButton"],
-  [data-testid="stTabs"] [data-testid="column"] [data-testid="stButton"] {
-    width: 100% !important;
-  }
-  [data-testid="stTabs"] [data-testid="stButton"] button {
-    width: 100% !important;
-    min-height: 42px !important;
-    padding: 0.32rem 0.09rem !important;
-    border-radius: 11px !important;
-    font-size: clamp(0.73rem, 3.3vw, 0.9rem) !important;
-    line-height: 1.2 !important;
-    white-space: normal !important;
-    word-break: keep-all !important;
-    overflow-wrap: anywhere !important;
-  }
-  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] [data-testid="stVerticalBlock"] {
-    gap: 0.3rem !important;
-  }
-}
-/* 배포자가 밝은 색 배경을 사용하므로, 브라우저의 어두운 테마에서도
-   문구와 입력 요소의 대비가 유지되도록 명시합니다. */
-.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {color:#352c27 !important; color-scheme:light !important;}
-.stApp [data-testid="stMarkdownContainer"],
-.stApp [data-testid="stWidgetLabel"],
-.stApp [data-testid="stCaptionContainer"],
-.stApp [data-testid="stSelectbox"] label,
-.stApp [data-testid="stTextInput"] label,
-.stApp [data-testid="stTextArea"] label {color:#46352d !important;}
+/* 입력과 선택 버튼 모두 테마별 색에 맞춰 자동 조정 */
 .stApp div[data-baseweb="select"] > div,
 .stApp div[data-baseweb="input"] > div,
 .stApp div[data-baseweb="textarea"] > div {
-  background:#fffdf9 !important; color:#302720 !important; border-color:#b6a69c !important;
+  background:var(--mc-surface) !important;
+  color:var(--mc-fg) !important;
+  border:1px solid var(--mc-edge) !important;
 }
-.stApp input, .stApp textarea {color:#302720 !important; -webkit-text-fill-color:#302720 !important;}
-.stApp input::placeholder, .stApp textarea::placeholder {color:#776b63 !important; -webkit-text-fill-color:#776b63 !important;}
-.stApp [data-testid="stButton"] button[kind="secondary"] {background:#ffffff !important; color:#352c27 !important; border:1px solid #b6a69c !important;}
-.stApp [data-testid="stButton"] button[kind="primary"] {background:#a4434b !important; color:#ffffff !important; border:1px solid #a4434b !important;}
-.stApp [data-testid="stTabs"] button {color:#493b32 !important;}
-.stApp [data-testid="stAlert"] {background:#edf4fc !important; color:#243247 !important;}
-.stApp [data-testid="stAlert"] * {color:#243247 !important;}
-.stApp [data-testid="stExpander"] {background:#fffdf9 !important; border-color:#b6a69c !important;}
-@media (max-width:640px) {
-  .block-container {padding-top:0.8rem !important;}
+.stApp input,.stApp textarea {color:var(--mc-fg) !important;-webkit-text-fill-color:var(--mc-fg) !important;}
+.stApp input::placeholder,.stApp textarea::placeholder {color:var(--mc-muted) !important;-webkit-text-fill-color:var(--mc-muted) !important;opacity:1;}
+.stApp [data-testid="stButton"] button[kind="secondary"] {
+  background:var(--mc-surface) !important;color:var(--mc-fg) !important;
+  border:1px solid var(--mc-edge) !important;
+}
+.stApp [data-testid="stButton"] button[kind="secondary"]:hover {border-color:var(--mc-fg) !important;}
+.stApp [data-testid="stButton"] button[kind="primary"] {
+  background:var(--mc-accent) !important;color:#fff !important;
+  border:1px solid var(--mc-accent) !important;
+}
+.stApp [data-testid="stTabs"] button {color:var(--mc-fg) !important;}
+.stApp [data-testid="stTabs"] button[aria-selected="true"] {border-bottom-color:var(--mc-accent) !important;}
+.stApp [data-testid="stExpander"] {background:var(--mc-surface) !important;border-color:var(--mc-edge) !important;}
+/* Streamlit 경고·정보 메시지는 내장 테마를 유지합니다. */
+@media (max-width: 640px) {
+  .block-container {padding:0.8rem 0.8rem 4rem !important;}
   .stApp h1 {font-size:1.85rem !important;}
+  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] {
+    display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;
+    align-items:stretch !important;gap:0.4rem !important;
+  }
+  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+    flex:1 1 0% !important;width:0 !important;min-width:0 !important;max-width:none !important;
+  }
+  [data-testid="stTabs"] [data-testid="stColumn"] [data-testid="stButton"],
+  [data-testid="stTabs"] [data-testid="column"] [data-testid="stButton"] {width:100% !important;}
+  [data-testid="stTabs"] [data-testid="stButton"] button {
+    width:100% !important;min-height:42px !important;padding:0.32rem 0.09rem !important;
+    border-radius:11px !important;font-size:clamp(0.73rem,3.3vw,0.9rem) !important;
+    line-height:1.2 !important;white-space:normal !important;word-break:keep-all !important;
+    overflow-wrap:anywhere !important;
+  }
+  [data-testid="stTabs"] [data-testid="stHorizontalBlock"] [data-testid="stVerticalBlock"] {gap:0.3rem !important;}
 }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🍪 오늘의 마음쿠키")
-st.caption("💡 화면이 잘 보이지 않으면 오른쪽 위 ⋮ 메뉴의 설정(Settings)에서 테마를 Light로 변경해 주세요. (기본 화면은 밝은 색으로 표시됩니다.)")
+st.caption("🌗 라이트·다크 모드 모두 지원해요. 오른쪽 위 ⋮ → Settings → Theme에서 변경할 수 있어요.")
 st.write("오늘 내 마음에 가장 가까운 감정을 **1~2개** 골라서 쿠키를 열어 봐요.")
 st.caption("감정에는 정답이 없어요. 오늘의 마음을 있는 그대로 선택해 주세요.")
 
@@ -1722,7 +1734,7 @@ if not st.session_state.recorded:
             st.session_state.result = result
             cookie_image = base64.b64encode((ROOT / "fortune_cookie.png").read_bytes()).decode("ascii")
             stage = st.empty()
-            stage.markdown(f'''<div class="cookie-stage"><div class="cookie-note">💌</div><div class="cookie-half cookie-left" style="background-image:url(data:image/png;base64,{cookie_image})"></div><div class="cookie-half cookie-right" style="background-image:url(data:image/png;base64,{cookie_image})"></div></div><div style="text-align:center;color:#976045">🍪 마음쿠키를 여는 중...</div>''', unsafe_allow_html=True)
+            stage.markdown(f'''<div class="cookie-stage"><div class="cookie-note">💌</div><div class="cookie-half cookie-left" style="background-image:url(data:image/png;base64,{cookie_image})"></div><div class="cookie-half cookie-right" style="background-image:url(data:image/png;base64,{cookie_image})"></div></div><div style="text-align:center;color:var(--mc-fg)">🍪 마음쿠키를 여는 중...</div>''', unsafe_allow_html=True)
             time.sleep(3.05)
             stage.empty()
             st.rerun()

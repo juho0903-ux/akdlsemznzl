@@ -205,6 +205,7 @@ def user_safe_error(exc):
 
 
 def get_auth_sheet():
+    """Initialize auth worksheet once; never overwrite already registered accounts."""
     book = google_book()
     try:
         sheet = book.worksheet("학생인증")
@@ -212,21 +213,30 @@ def get_auth_sheet():
         sheet = book.add_worksheet(title="학생인증", rows=100, cols=5)
     if sheet.col_count < 5:
         sheet.resize(cols=5)
-    values = sheet.get_all_values()
-    if not values:
-        # 최초 1회만 등록 코드를 생성합니다. 공개 앱 화면에는 절대 표시하지 않습니다.
+
+    first_row = sheet.row_values(1)
+    if not first_row:
+        # A blank sheet is safe to initialize. Check it again immediately before writing.
+        # Keep all student secrets server-side; never render registration codes on this page.
+        if sheet.get_all_values():
+            raise RuntimeError("AUTH_NONEMPTY_NO_HEADER")
         rows = [AUTH_HEADERS] + [
             [str(i), name, secrets.token_urlsafe(9), "", ""]
             for i, name in enumerate(STUDENTS, 1)
         ]
-        write_sheet_cells(book, "학생인증", f"A1:E{len(rows)}", rows)
-        # Verify contents: do not report ready while the sheet is still empty.
-        check = sheet.row_values(1)
-        if check[:5] != AUTH_HEADERS:
-            raise RuntimeError("학생인증_초기화_검증실패")
+        try:
+            # Explicit named parameters avoid the different positional argument
+            # orders supported by gspread releases.
+            sheet.update(range_name=f"A1:E{len(rows)}", values=rows, raw=True)
+        except Exception as exc:
+            raise RuntimeError("AUTH_WRITE_FAILED") from exc
+        first_row = sheet.row_values(1)
+        if first_row[:5] != AUTH_HEADERS:
+            raise RuntimeError("AUTH_VERIFY_FAILED")
         sheet.freeze(rows=1)
-    elif values[0][:5] != AUTH_HEADERS:
-        raise RuntimeError("학생인증 시트의 제목이 맞지 않습니다.")
+    elif first_row[:5] != AUTH_HEADERS:
+        raise RuntimeError("AUTH_HEADER_MISMATCH")
+
     return sheet
 
 
@@ -1558,7 +1568,8 @@ if st.session_state.verified_student != number:
         auth_sheet, auth_row, record = auth_record(number)
     except Exception as exc:
         st.error("학생인증 데이터 준비에 실패했습니다. 선생님께 알려 주세요.")
-        st.caption(f"점검 코드: 인증 초기화 / {user_safe_error(exc)}")
+        detail = str(exc) if isinstance(exc, RuntimeError) and str(exc).startswith("AUTH_") else user_safe_error(exc)
+        st.caption(f"점검 코드: 인증 초기화 / {detail}")
         st.stop()
     if is_rate_limited(number):
         st.warning("인증 시도가 많아 잠시 이용할 수 없어요. 15분 뒤 다시 시도하거나 선생님께 알려 주세요.")
